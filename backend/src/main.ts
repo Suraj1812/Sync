@@ -27,7 +27,7 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(config.get<number>('PORT') ?? 4000);
+  await app.listen(config.get<number>('PORT') ?? 4000, '0.0.0.0');
 }
 
 bootstrap();
