@@ -23,7 +23,7 @@ export function CallControls({
   onEnd,
 }: CallControlsProps) {
   return (
-    <div className="flex items-center gap-3 rounded-full border border-white/15 bg-white/95 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.3)] backdrop-blur">
+    <div className="flex max-w-full items-center gap-2 rounded-full border border-white/15 bg-white/95 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.3)] backdrop-blur sm:gap-3">
       <Button
         aria-label="Toggle microphone"
         variant="soft"
@@ -52,7 +52,7 @@ export function CallControls({
       <Button
         aria-label="End call"
         variant="danger"
-        className="h-11 w-11 rounded-full px-0 shadow-sm [&_svg]:h-5 [&_svg]:w-5"
+        className="h-11 w-12 rounded-full px-0 shadow-sm [&_svg]:h-5 [&_svg]:w-5"
         onClick={onEnd}
         icon={<PhoneOff size={19} />}
       />

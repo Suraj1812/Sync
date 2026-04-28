@@ -46,7 +46,7 @@ const railButtonClass =
   'h-12 w-12 rounded-2xl px-0 text-white/70 hover:bg-white/10 hover:text-white focus-visible:ring-white/20 [&_svg]:h-[22px] [&_svg]:w-[22px]';
 
 const iconButtonClass =
-  'h-11 w-11 rounded-xl border border-slate-200 bg-slate-50 px-0 text-slate-700 shadow-sm hover:border-slate-300 hover:bg-white hover:text-slate-950 focus-visible:ring-blue-100 [&_svg]:h-[21px] [&_svg]:w-[21px]';
+  'h-10 w-10 rounded-xl border border-slate-200 bg-slate-50 px-0 text-slate-700 shadow-sm hover:border-slate-300 hover:bg-white hover:text-slate-950 focus-visible:ring-blue-100 sm:h-11 sm:w-11 [&_svg]:h-5 [&_svg]:w-5 sm:[&_svg]:h-[21px] sm:[&_svg]:w-[21px]';
 
 export function AppLayout() {
   const { user, token, logout, setUser } = useAuthStore();
@@ -169,7 +169,7 @@ export function AppLayout() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-slate-100 p-0 text-ink md:p-3">
+    <main className="h-[100dvh] overflow-hidden bg-slate-100 p-0 text-ink md:p-3">
       <div className="flex h-full overflow-hidden bg-white shadow-[0_20px_70px_rgba(15,23,42,0.08)] md:rounded-[28px] md:border md:border-slate-200">
         <nav className="hidden w-20 shrink-0 flex-col items-center border-r border-slate-900/80 bg-slate-950 py-5 md:flex">
           <div className="flex flex-1 flex-col gap-3">
@@ -201,7 +201,7 @@ export function AppLayout() {
 
         <aside
           className={clsx(
-            'absolute inset-y-0 left-0 z-30 w-full max-w-sm border-r border-slate-200 bg-white transition-transform md:static md:block md:w-[420px] md:max-w-[420px] md:translate-x-0',
+            'absolute inset-y-0 left-0 z-30 w-[min(92vw,24rem)] border-r border-slate-200 bg-white shadow-2xl transition-transform md:static md:block md:w-[380px] md:max-w-[380px] md:translate-x-0 md:shadow-none lg:w-[420px] lg:max-w-[420px]',
             mobileListOpen ? 'translate-x-0' : '-translate-x-full',
           )}
         >
@@ -219,6 +219,13 @@ export function AppLayout() {
             onClose={() => setMobileListOpen(false)}
           />
         </aside>
+        {mobileListOpen && (
+          <button
+            aria-label="Close conversations"
+            className="absolute inset-0 z-20 bg-slate-950/30 md:hidden"
+            onClick={() => setMobileListOpen(false)}
+          />
+        )}
 
         <section className="flex min-w-0 flex-1 flex-col">
           <ConversationView
@@ -280,13 +287,13 @@ function ConversationList({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b border-slate-200 px-5 py-5">
-        <div className="flex items-center justify-between gap-4">
-          <div>
+      <header className="border-b border-slate-200 px-4 py-4 sm:px-5 sm:py-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase text-slate-400">Sync</p>
             <h1 className="mt-1 text-xl font-semibold text-slate-950">Messages</h1>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center">
             <Button
               aria-label="Search users"
               title="Search users"
@@ -307,7 +314,7 @@ function ConversationList({
               aria-label="Logout"
               title="Logout"
               variant="soft"
-              className={iconButtonClass}
+              className={clsx(iconButtonClass, 'hidden sm:inline-flex')}
               onClick={onLogout}
               icon={<LogOut size={21} />}
             />
@@ -322,7 +329,7 @@ function ConversationList({
           </div>
         </div>
         <button
-          className="mt-5 flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-slate-300 hover:bg-white"
+          className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-slate-300 hover:bg-white sm:mt-5"
           onClick={onProfile}
         >
           <Avatar user={currentUser} />
@@ -331,6 +338,14 @@ function ConversationList({
             <p className="truncate text-xs text-muted">{currentUser.status || 'Available'}</p>
           </div>
         </button>
+        <Button
+          variant="soft"
+          className="mt-3 h-10 w-full rounded-xl sm:hidden"
+          onClick={onLogout}
+          icon={<LogOut size={18} />}
+        >
+          Sign out
+        </Button>
       </header>
       <div className="thin-scrollbar flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
@@ -432,9 +447,9 @@ function ConversationView({
   if (!conversation || !peer) {
     return (
       <div className="flex h-full flex-col">
-        <header className="flex h-16 items-center gap-3 border-b border-slate-200 bg-white px-4 md:hidden">
+        <header className="safe-top flex min-h-16 items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 md:hidden">
           <Button aria-label="Menu" variant="soft" className={iconButtonClass} onClick={onMenu} icon={<Menu size={21} />} />
-          <span className="font-semibold">Sync</span>
+          <span className="min-w-0 truncate font-semibold">Sync</span>
         </header>
         <div className="grid flex-1 place-items-center bg-[#f6f8fb] px-6 text-center">
           <div>
@@ -451,7 +466,7 @@ function ConversationView({
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-20 items-center justify-between border-b border-slate-200 bg-white px-5 md:px-8">
+      <header className="safe-top flex min-h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-3 sm:px-5 md:min-h-20 md:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <Button
             aria-label="Menu"
@@ -463,12 +478,12 @@ function ConversationView({
           <Avatar user={peer} />
           <div className="min-w-0">
             <h1 className="truncate text-base font-semibold text-slate-950">{peer.name}</h1>
-            <p className="truncate text-sm text-muted">
+            <p className="truncate text-xs text-muted sm:text-sm">
               {typingUserId && typingUserId !== user.id ? 'Typing...' : formatPresence(peer.isOnline, peer.lastSeen)}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <Button
             aria-label="Start voice call"
             title="Start voice call"
@@ -489,7 +504,7 @@ function ConversationView({
       </header>
 
       <div className="thin-scrollbar flex-1 overflow-y-auto bg-[#f6f8fb]">
-        <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col justify-end space-y-3 px-5 py-7 md:px-8">
+        <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col justify-end space-y-3 px-3 py-4 sm:px-5 sm:py-6 md:px-8 md:py-7">
           {messages.map((message, index) => {
             const previous = messages[index - 1];
             const showDay = !previous || !isSameCalendarDay(previous.createdAt, message.createdAt);
@@ -504,12 +519,12 @@ function ConversationView({
         </div>
       </div>
 
-      <form className="relative border-t border-slate-200 bg-white px-4 py-4 md:px-8" onSubmit={send}>
+      <form className="safe-bottom relative border-t border-slate-200 bg-white px-3 pt-3 sm:px-4 md:px-8" onSubmit={send}>
         {emojiOpen && (
-          <div className="absolute bottom-20 left-4 z-10 md:left-8">
-            <Suspense fallback={<div className="h-48 w-80 rounded-xl border border-slate-200 bg-white shadow-soft" />}>
+          <div className="absolute bottom-20 left-3 z-10 w-[calc(100vw-1.5rem)] max-w-80 sm:left-4 md:left-8">
+            <Suspense fallback={<div className="h-48 w-full rounded-xl border border-slate-200 bg-white shadow-soft" />}>
               <EmojiPicker
-                width={320}
+                width="100%"
                 height={380}
                 previewConfig={{ showPreview: false }}
                 onEmojiClick={(emoji: EmojiClickData) => setContent((current) => current + emoji.emoji)}
@@ -517,7 +532,7 @@ function ConversationView({
             </Suspense>
           </div>
         )}
-        <div className="mx-auto flex max-w-4xl items-end gap-3">
+        <div className="mx-auto flex max-w-4xl items-end gap-2 sm:gap-3">
           <Button
             type="button"
             aria-label="Emoji"
@@ -528,14 +543,14 @@ function ConversationView({
             icon={<Smile size={21} />}
           />
           <textarea
-            className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand focus:bg-white focus:ring-4 focus:ring-blue-100"
+            className="max-h-32 min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base outline-none transition placeholder:text-slate-400 focus:border-brand focus:bg-white focus:ring-4 focus:ring-blue-100 sm:px-5 sm:text-sm"
             rows={1}
             value={content}
             placeholder="Message"
             onChange={(event) => onTyping(event.target.value)}
           />
           <Button
-            className="h-11 w-11 shrink-0 rounded-2xl px-0 shadow-[0_10px_24px_rgba(37,99,235,0.25)] [&_svg]:h-[21px] [&_svg]:w-[21px]"
+            className="h-11 w-11 shrink-0 rounded-2xl px-0 shadow-[0_10px_24px_rgba(37,99,235,0.25)] [&_svg]:h-5 [&_svg]:w-5 sm:[&_svg]:h-[21px] sm:[&_svg]:w-[21px]"
             aria-label="Send"
             title="Send"
             icon={<Send size={21} />}
@@ -655,7 +670,7 @@ function ProfileModal({
       <form className="space-y-4" onSubmit={save}>
         <div className="flex flex-col items-center gap-3 py-2">
           <Avatar user={{ ...user, name, avatar }} size="lg" />
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
             <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
               <Upload size={17} />
               Upload image
@@ -696,7 +711,7 @@ function IncomingCallModal({
         </div>
         <p className="font-semibold">{callerName}</p>
         <p className="mt-1 text-sm text-muted">{call?.callType === 'audio' ? 'Voice call' : 'Video call'}</p>
-        <div className="mt-6 flex gap-3">
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <Button variant="soft" className="h-11 flex-1 rounded-xl" onClick={onReject}>
             Decline
           </Button>
@@ -750,15 +765,15 @@ function ActiveCallScreen({
   const remaining = String(seconds % 60).padStart(2, '0');
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-slate-950 text-white">
-      <header className="flex h-16 items-center justify-between px-5">
-        <div>
-          <p className="text-sm font-medium">{call.peerName}</p>
+    <div className="fixed inset-0 z-40 flex h-[100dvh] flex-col bg-slate-950 text-white">
+      <header className="safe-top flex min-h-16 items-center justify-between gap-4 px-4 py-3 sm:px-5">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{call.peerName}</p>
           <p className="text-xs text-white/60">
             {status === 'connected' ? `${minutes}:${remaining}` : status === 'ringing' ? 'Ringing...' : 'Connecting...'}
           </p>
         </div>
-        <p className="text-xs text-white/60">
+        <p className="shrink-0 text-xs text-white/60">
           {status === 'connected' ? 'Connected' : call.callType === 'audio' ? 'Voice call' : 'Video call'}
         </p>
       </header>
@@ -788,10 +803,10 @@ function ActiveCallScreen({
             autoPlay
             muted
             playsInline
-            className="absolute right-4 top-4 h-32 w-24 rounded-xl border border-white/20 bg-gray-900 object-cover shadow-soft md:h-44 md:w-32"
+            className="absolute right-3 top-3 h-28 w-20 rounded-xl border border-white/20 bg-gray-900 object-cover shadow-soft sm:right-4 sm:top-4 sm:h-32 sm:w-24 md:h-44 md:w-32"
           />
         )}
-        <div className="absolute inset-x-0 bottom-6 flex justify-center">
+        <div className="safe-bottom absolute inset-x-0 bottom-0 flex justify-center px-3">
           <CallControls
             muted={rtc.muted}
             cameraOff={rtc.cameraOff}
