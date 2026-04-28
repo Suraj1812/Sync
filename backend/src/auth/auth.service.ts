@@ -23,6 +23,7 @@ export class AuthService {
         name: dto.name.trim(),
         email: dto.email.toLowerCase(),
         passwordHash,
+        avatar: dto.avatar?.trim() || undefined,
       },
       select: this.publicUserSelect(),
     });

@@ -10,7 +10,7 @@ type AuthState = {
   setUser: (user: User) => void;
   bootstrap: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, avatar?: string) => Promise<void>;
   logout: () => void;
 };
 
@@ -38,8 +38,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.setItem('sync_token', result.token);
     set({ user: result.user, token: result.token });
   },
-  register: async (name, email, password) => {
-    const result = await authApi.register({ name, email, password });
+  register: async (name, email, password, avatar) => {
+    const result = await authApi.register({ name, email, password, avatar });
     localStorage.setItem('sync_token', result.token);
     set({ user: result.user, token: result.token });
   },

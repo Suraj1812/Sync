@@ -19,7 +19,7 @@ export type AuthResponse = {
 };
 
 export const authApi = {
-  register: (data: { name: string; email: string; password: string }) =>
+  register: (data: { name: string; email: string; password: string; avatar?: string }) =>
     api.post<AuthResponse>('/auth/register', data).then((res) => res.data),
   login: (data: { email: string; password: string }) =>
     api.post<AuthResponse>('/auth/login', data).then((res) => res.data),

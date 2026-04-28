@@ -28,6 +28,7 @@ import { getSocket } from '../services/socket';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
 import type { ActiveCall, Conversation, IncomingCall, Message, User } from '../types';
+import { MAX_AVATAR_LABEL, readAvatarFile } from '../utils/avatarUpload';
 import { formatMessageDay, formatPresence, formatTime, isSameCalendarDay } from '../utils/time';
 
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
@@ -43,7 +44,7 @@ function findParticipantById(conversations: Conversation[], userId: string) {
 }
 
 const railButtonClass =
-  'h-12 w-12 rounded-2xl px-0 text-white/70 hover:bg-white/10 hover:text-white focus-visible:ring-white/20 [&_svg]:h-[22px] [&_svg]:w-[22px]';
+  'h-12 w-12 rounded-2xl px-0 text-white/75 hover:bg-white/15 hover:text-white focus-visible:ring-white/20 [&_svg]:h-[22px] [&_svg]:w-[22px]';
 
 const iconButtonClass =
   'h-10 w-10 rounded-xl border border-slate-200 bg-slate-50 px-0 text-slate-700 shadow-sm hover:border-slate-300 hover:bg-white hover:text-slate-950 focus-visible:ring-blue-100 sm:h-11 sm:w-11 [&_svg]:h-5 [&_svg]:w-5 sm:[&_svg]:h-[21px] sm:[&_svg]:w-[21px]';
@@ -171,7 +172,7 @@ export function AppLayout() {
   return (
     <main className="h-[100dvh] overflow-hidden bg-slate-100 p-0 text-ink md:p-3">
       <div className="flex h-full overflow-hidden bg-white shadow-[0_20px_70px_rgba(15,23,42,0.08)] md:rounded-[28px] md:border md:border-slate-200">
-        <nav className="hidden w-20 shrink-0 flex-col items-center border-r border-slate-900/80 bg-slate-950 py-5 md:flex">
+        <nav className="hidden w-20 shrink-0 flex-col items-center border-r border-teal-200/10 bg-[linear-gradient(180deg,#1d4ed8_0%,#0f766e_52%,#be123c_100%)] py-5 shadow-[inset_-1px_0_rgba(255,255,255,0.08)] md:flex">
           <div className="flex flex-1 flex-col gap-3">
             <Button
               aria-label="Messages"
@@ -639,23 +640,14 @@ function ProfileModal({
 
   function onAvatarFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setAvatarError('Choose an image file.');
-      return;
-    }
-    if (file.size > 1_200_000) {
-      setAvatarError('Use an image smaller than 1.2 MB.');
-      return;
-    }
-
-    const reader = new window.FileReader();
-    reader.onload = () => {
-      setAvatar(String(reader.result));
-      setAvatarError('');
-    };
-    reader.onerror = () => setAvatarError('Could not read that image.');
-    reader.readAsDataURL(file);
+    void readAvatarFile(file)
+      .then((result) => {
+        setAvatar(result);
+        setAvatarError('');
+      })
+      .catch((error: unknown) => setAvatarError(error instanceof Error ? error.message : 'Could not read that image.'));
   }
 
   async function save(event: FormEvent) {
@@ -670,6 +662,7 @@ function ProfileModal({
       <form className="space-y-4" onSubmit={save}>
         <div className="flex flex-col items-center gap-3 py-2">
           <Avatar user={{ ...user, name, avatar }} size="lg" />
+          <p className="text-xs text-muted">Images up to {MAX_AVATAR_LABEL}</p>
           <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
             <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
               <Upload size={17} />

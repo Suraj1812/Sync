@@ -24,8 +24,8 @@ async function bootstrap() {
     origin: corsOrigin(config.get<string>('FRONTEND_URL')),
     credentials: true,
   });
-  app.use(json({ limit: '2mb' }));
-  app.use(urlencoded({ extended: true, limit: '2mb' }));
+  app.use(json({ limit: '6mb' }));
+  app.use(urlencoded({ extended: true, limit: '6mb' }));
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
     new ValidationPipe({
