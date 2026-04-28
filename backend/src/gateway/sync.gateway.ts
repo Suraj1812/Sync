@@ -23,6 +23,7 @@ type CallPayload = {
   receiverId: string;
   conversationId?: string;
   callId?: string;
+  callType?: 'audio' | 'video';
   offer?: unknown;
   answer?: unknown;
   candidate?: unknown;
@@ -147,8 +148,13 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
       callerId: client.user.id,
       receiverId: payload.receiverId,
       conversationId: payload.conversationId,
+      callType: payload.callType === 'audio' ? 'audio' : 'video',
     });
-    client.emit('call:ringing', { callId: call.id, receiverId: payload.receiverId });
+    client.emit('call:ringing', {
+      callId: call.id,
+      receiverId: payload.receiverId,
+      callType: payload.callType === 'audio' ? 'audio' : 'video',
+    });
   }
 
   @SubscribeMessage('call:accept')

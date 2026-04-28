@@ -1,15 +1,17 @@
-import { FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { EmojiClickData } from 'emoji-picker-react';
 import {
   LogOut,
   Menu,
   MessageCircle,
-  Phone,
+  PhoneCall,
   Search,
   Send,
   Settings,
   Smile,
+  Upload,
   UserPlus,
+  Video,
   X,
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -32,6 +34,12 @@ const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
 function otherParticipant(conversation: Conversation, currentUserId: string) {
   return conversation.participants.find((participant) => participant.userId !== currentUserId)?.user;
+}
+
+function findParticipantById(conversations: Conversation[], userId: string) {
+  return conversations
+    .flatMap((conversation) => conversation.participants.map((participant) => participant.user))
+    .find((item) => item.id === userId);
 }
 
 const railButtonClass =
@@ -102,14 +110,16 @@ export function AppLayout() {
     setMobileListOpen(false);
   }
 
-  function startCall() {
+  function startCall(callType: 'audio' | 'video') {
     if (!activePeer || !socket) return;
-    socket.emit('call:initiate', { receiverId: activePeer.id, conversationId: activeConversationId });
-    socket.once('call:ringing', (payload: { callId: string }) => {
+    socket.emit('call:initiate', { receiverId: activePeer.id, conversationId: activeConversationId, callType });
+    socket.once('call:ringing', (payload: { callId: string; callType?: 'audio' | 'video' }) => {
       setActiveCall({
         callId: payload.callId,
         peerId: activePeer.id,
         peerName: activePeer.name,
+        peerAvatar: activePeer.avatar,
+        callType: payload.callType ?? callType,
         isCaller: true,
         status: 'ringing',
       });
@@ -118,9 +128,7 @@ export function AppLayout() {
 
   function acceptCall() {
     if (!incomingCall || !socket) return;
-    const caller = conversations
-      .flatMap((conversation) => conversation.participants.map((participant) => participant.user))
-      .find((item) => item.id === incomingCall.callerId);
+    const caller = findParticipantById(conversations, incomingCall.callerId);
     socket.emit('call:accept', {
       callId: incomingCall.callId,
       receiverId: incomingCall.callerId,
@@ -129,6 +137,8 @@ export function AppLayout() {
       callId: incomingCall.callId,
       peerId: incomingCall.callerId,
       peerName: caller?.name ?? 'Incoming caller',
+      peerAvatar: caller?.avatar,
+      callType: incomingCall.callType,
       isCaller: false,
       status: 'connecting',
     });
@@ -155,10 +165,7 @@ export function AppLayout() {
     <main className="h-screen overflow-hidden bg-slate-100 p-0 text-ink md:p-3">
       <div className="flex h-full overflow-hidden bg-white shadow-[0_20px_70px_rgba(15,23,42,0.08)] md:rounded-[28px] md:border md:border-slate-200">
         <nav className="hidden w-20 shrink-0 flex-col items-center border-r border-slate-900/80 bg-slate-950 py-5 md:flex">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-brand text-sm font-semibold text-white shadow-[0_10px_30px_rgba(37,99,235,0.35)]">
-            S
-          </div>
-          <div className="mt-8 flex flex-1 flex-col gap-3">
+          <div className="flex flex-1 flex-col gap-3">
             <Button
               aria-label="Messages"
               title="Messages"
@@ -226,9 +233,7 @@ export function AppLayout() {
         call={incomingCall}
         callerName={
           incomingCall
-            ? conversations
-                .flatMap((conversation) => conversation.participants.map((participant) => participant.user))
-                .find((item) => item.id === incomingCall.callerId)?.name ?? 'Incoming caller'
+            ? findParticipantById(conversations, incomingCall.callerId)?.name ?? 'Incoming caller'
             : ''
         }
         onAccept={acceptCall}
@@ -380,7 +385,7 @@ function ConversationView({
   typingUserId?: string | null;
   socket: ReturnType<typeof getSocket> | null;
   onMenu: () => void;
-  onStartCall: () => void;
+  onStartCall: (callType: 'audio' | 'video') => void;
 }) {
   const [content, setContent] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -444,14 +449,24 @@ function ConversationView({
             </p>
           </div>
         </div>
-        <Button
-          aria-label="Start video call"
-          title="Start video call"
-          variant="soft"
-          className={iconButtonClass}
-          onClick={onStartCall}
-          icon={<Phone size={21} />}
-        />
+        <div className="flex items-center gap-2">
+          <Button
+            aria-label="Start voice call"
+            title="Start voice call"
+            variant="soft"
+            className={iconButtonClass}
+            onClick={() => onStartCall('audio')}
+            icon={<PhoneCall size={21} />}
+          />
+          <Button
+            aria-label="Start video call"
+            title="Start video call"
+            variant="soft"
+            className={iconButtonClass}
+            onClick={() => onStartCall('video')}
+            icon={<Video size={21} />}
+          />
+        </div>
       </header>
 
       <div className="thin-scrollbar flex-1 overflow-y-auto bg-[#f6f8fb]">
@@ -562,12 +577,35 @@ function ProfileModal({
   const [name, setName] = useState(user.name);
   const [status, setStatus] = useState(user.status ?? '');
   const [avatar, setAvatar] = useState(user.avatar ?? '');
+  const [avatarError, setAvatarError] = useState('');
 
   useEffect(() => {
     setName(user.name);
     setStatus(user.status ?? '');
     setAvatar(user.avatar ?? '');
+    setAvatarError('');
   }, [user]);
+
+  function onAvatarFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Choose an image file.');
+      return;
+    }
+    if (file.size > 1_200_000) {
+      setAvatarError('Use an image smaller than 1.2 MB.');
+      return;
+    }
+
+    const reader = new window.FileReader();
+    reader.onload = () => {
+      setAvatar(String(reader.result));
+      setAvatarError('');
+    };
+    reader.onerror = () => setAvatarError('Could not read that image.');
+    reader.readAsDataURL(file);
+  }
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -579,12 +617,24 @@ function ProfileModal({
   return (
     <Modal open={open} title="Profile" onClose={onClose}>
       <form className="space-y-4" onSubmit={save}>
-        <div className="flex justify-center py-2">
+        <div className="flex flex-col items-center gap-3 py-2">
           <Avatar user={{ ...user, name, avatar }} size="lg" />
+          <div className="flex items-center gap-2">
+            <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+              <Upload size={17} />
+              Upload image
+              <input accept="image/*" className="hidden" type="file" onChange={onAvatarFile} />
+            </label>
+            {avatar && (
+              <Button type="button" variant="soft" className="h-10 rounded-xl" onClick={() => setAvatar('')}>
+                Remove
+              </Button>
+            )}
+          </div>
+          {avatarError && <p className="text-sm text-red-600">{avatarError}</p>}
         </div>
         <Input label="Name" value={name} onChange={(event) => setName(event.target.value)} required />
         <Input label="Status" value={status} onChange={(event) => setStatus(event.target.value)} placeholder="Available" />
-        <Input label="Avatar URL" value={avatar} onChange={(event) => setAvatar(event.target.value)} placeholder="https://..." />
         <Button className="h-11 w-full rounded-xl">Save changes</Button>
       </form>
     </Modal>
@@ -606,10 +656,10 @@ function IncomingCallModal({
     <Modal open={Boolean(call)} title="Incoming call" onClose={onReject}>
       <div className="text-center">
         <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl border border-blue-100 bg-blue-50 text-brand shadow-sm">
-          <Phone size={24} />
+          {call?.callType === 'audio' ? <PhoneCall size={24} /> : <Video size={24} />}
         </div>
         <p className="font-semibold">{callerName}</p>
-        <p className="mt-1 text-sm text-muted">Video call</p>
+        <p className="mt-1 text-sm text-muted">{call?.callType === 'audio' ? 'Voice call' : 'Video call'}</p>
         <div className="mt-6 flex gap-3">
           <Button variant="soft" className="h-11 flex-1 rounded-xl" onClick={onReject}>
             Decline
@@ -643,6 +693,7 @@ function ActiveCallScreen({
     peerId: call.peerId,
     isCaller: call.isCaller,
     enabled: call.status !== 'ringing',
+    callType: call.callType,
     localVideoRef,
     remoteVideoRef,
     onConnected: () => setStatus('connected'),
@@ -667,24 +718,49 @@ function ActiveCallScreen({
       <header className="flex h-16 items-center justify-between px-5">
         <div>
           <p className="text-sm font-medium">{call.peerName}</p>
-          <p className="text-xs text-white/60">{status === 'connected' ? `${minutes}:${remaining}` : 'Connecting...'}</p>
+          <p className="text-xs text-white/60">
+            {status === 'connected' ? `${minutes}:${remaining}` : status === 'ringing' ? 'Ringing...' : 'Connecting...'}
+          </p>
         </div>
-        <p className="text-xs text-white/60">{status === 'connected' ? 'Connected' : 'Secure WebRTC'}</p>
+        <p className="text-xs text-white/60">
+          {status === 'connected' ? 'Connected' : call.callType === 'audio' ? 'Voice call' : 'Video call'}
+        </p>
       </header>
       <div className="relative min-h-0 flex-1">
-        <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
+        {call.callType === 'audio' && (
+          <div className="absolute inset-0 grid place-items-center px-6 text-center">
+            <div>
+              <div className="mx-auto mb-5">
+                <Avatar user={{ name: call.peerName, avatar: call.peerAvatar, isOnline: true }} size="lg" />
+              </div>
+              <h2 className="text-2xl font-semibold">{call.peerName}</h2>
+              <p className="mt-2 text-sm text-white/60">
+                {status === 'connected' ? `${minutes}:${remaining}` : status === 'ringing' ? 'Ringing...' : 'Connecting voice call...'}
+              </p>
+            </div>
+          </div>
+        )}
         <video
-          ref={localVideoRef}
+          ref={remoteVideoRef}
           autoPlay
-          muted
           playsInline
-          className="absolute right-4 top-4 h-32 w-24 rounded-xl border border-white/20 bg-gray-900 object-cover shadow-soft md:h-44 md:w-32"
+          className={call.callType === 'video' ? 'h-full w-full object-cover' : 'sr-only'}
         />
+        {call.callType === 'video' && (
+          <video
+            ref={localVideoRef}
+            autoPlay
+            muted
+            playsInline
+            className="absolute right-4 top-4 h-32 w-24 rounded-xl border border-white/20 bg-gray-900 object-cover shadow-soft md:h-44 md:w-32"
+          />
+        )}
         <div className="absolute inset-x-0 bottom-6 flex justify-center">
           <CallControls
             muted={rtc.muted}
             cameraOff={rtc.cameraOff}
             sharing={rtc.sharing}
+            videoEnabled={call.callType === 'video'}
             onToggleMute={rtc.toggleMute}
             onToggleCamera={rtc.toggleCamera}
             onShare={rtc.shareScreen}

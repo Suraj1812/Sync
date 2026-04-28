@@ -7,6 +7,7 @@ type UseWebRTCOptions = {
   peerId?: string;
   isCaller: boolean;
   enabled: boolean;
+  callType: 'audio' | 'video';
   localVideoRef: RefObject<HTMLVideoElement | null>;
   remoteVideoRef: RefObject<HTMLVideoElement | null>;
   onConnected: () => void;
@@ -14,7 +15,17 @@ type UseWebRTCOptions = {
 
 const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
 
-export function useWebRTC({ socket, callId, peerId, isCaller, enabled, localVideoRef, remoteVideoRef, onConnected }: UseWebRTCOptions) {
+export function useWebRTC({
+  socket,
+  callId,
+  peerId,
+  isCaller,
+  enabled,
+  callType,
+  localVideoRef,
+  remoteVideoRef,
+  onConnected,
+}: UseWebRTCOptions) {
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const [muted, setMuted] = useState(false);
@@ -35,12 +46,12 @@ export function useWebRTC({ socket, callId, peerId, isCaller, enabled, localVide
       onConnected();
     };
 
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: true });
     localStreamRef.current = stream;
     if (localVideoRef.current) localVideoRef.current.srcObject = stream;
     stream.getTracks().forEach((track) => peer.addTrack(track, stream));
     return peer;
-  }, [callId, localVideoRef, onConnected, peerId, remoteVideoRef, socket]);
+  }, [callId, callType, localVideoRef, onConnected, peerId, remoteVideoRef, socket]);
 
   const startOffer = useCallback(async () => {
     const peer = await ensurePeer();
@@ -95,6 +106,7 @@ export function useWebRTC({ socket, callId, peerId, isCaller, enabled, localVide
   };
 
   const toggleCamera = () => {
+    if (callType === 'audio') return;
     localStreamRef.current?.getVideoTracks().forEach((track) => {
       track.enabled = cameraOff;
     });
@@ -102,7 +114,7 @@ export function useWebRTC({ socket, callId, peerId, isCaller, enabled, localVide
   };
 
   const shareScreen = async () => {
-    if (!peerRef.current) return;
+    if (!peerRef.current || callType === 'audio') return;
     const display = await navigator.mediaDevices.getDisplayMedia({ video: true });
     const screenTrack = display.getVideoTracks()[0];
     const sender = peerRef.current.getSenders().find((item) => item.track?.kind === 'video');

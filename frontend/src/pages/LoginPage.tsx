@@ -2,6 +2,7 @@ import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
+import { PasswordInput } from '../components/PasswordInput';
 import { useAuthStore } from '../store/authStore';
 import { AuthShell } from './AuthShell';
 
@@ -31,9 +32,8 @@ export function LoginPage() {
     <AuthShell>
       <form className="space-y-4" onSubmit={onSubmit}>
         <Input label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-        <Input
+        <PasswordInput
           label="Password"
-          type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           required

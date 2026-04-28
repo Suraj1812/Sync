@@ -31,12 +31,15 @@ export type IncomingCall = {
   callerId: string;
   receiverId: string;
   conversationId?: string;
+  callType: 'audio' | 'video';
 };
 
 export type ActiveCall = {
   callId: string;
   peerId: string;
   peerName: string;
+  peerAvatar?: string | null;
+  callType: 'audio' | 'video';
   isCaller: boolean;
   status: 'ringing' | 'connecting' | 'connected' | 'ended';
 };

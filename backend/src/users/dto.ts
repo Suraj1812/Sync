@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUrl, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class UpdateProfileDto {
   @IsOptional()
@@ -13,7 +13,7 @@ export class UpdateProfileDto {
   status?: string;
 
   @IsOptional()
-  @IsUrl({ require_protocol: true })
-  @MaxLength(500)
+  @IsString()
+  @MaxLength(2_000_000)
   avatar?: string;
 }

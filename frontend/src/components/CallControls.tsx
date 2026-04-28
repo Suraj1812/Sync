@@ -5,6 +5,7 @@ type CallControlsProps = {
   muted: boolean;
   cameraOff: boolean;
   sharing: boolean;
+  videoEnabled: boolean;
   onToggleMute: () => void;
   onToggleCamera: () => void;
   onShare: () => void;
@@ -15,6 +16,7 @@ export function CallControls({
   muted,
   cameraOff,
   sharing,
+  videoEnabled,
   onToggleMute,
   onToggleCamera,
   onShare,
@@ -29,20 +31,24 @@ export function CallControls({
         onClick={onToggleMute}
         icon={muted ? <MicOff size={19} /> : <Mic size={19} />}
       />
-      <Button
-        aria-label="Toggle camera"
-        variant="soft"
-        className="h-11 w-11 rounded-full px-0 text-slate-800 [&_svg]:h-5 [&_svg]:w-5"
-        onClick={onToggleCamera}
-        icon={cameraOff ? <VideoOff size={19} /> : <Video size={19} />}
-      />
-      <Button
-        aria-label="Share screen"
-        variant={sharing ? 'primary' : 'soft'}
-        className="h-11 w-11 rounded-full px-0 [&_svg]:h-5 [&_svg]:w-5"
-        onClick={onShare}
-        icon={<MonitorUp size={19} />}
-      />
+      {videoEnabled && (
+        <>
+          <Button
+            aria-label="Toggle camera"
+            variant="soft"
+            className="h-11 w-11 rounded-full px-0 text-slate-800 [&_svg]:h-5 [&_svg]:w-5"
+            onClick={onToggleCamera}
+            icon={cameraOff ? <VideoOff size={19} /> : <Video size={19} />}
+          />
+          <Button
+            aria-label="Share screen"
+            variant={sharing ? 'primary' : 'soft'}
+            className="h-11 w-11 rounded-full px-0 [&_svg]:h-5 [&_svg]:w-5"
+            onClick={onShare}
+            icon={<MonitorUp size={19} />}
+          />
+        </>
+      )}
       <Button
         aria-label="End call"
         variant="danger"
