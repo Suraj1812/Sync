@@ -177,7 +177,7 @@ JWT_SECRET="replace-with-a-long-random-secret"
 JWT_EXPIRES_IN="7d"
 PORT=4000
 FRONTEND_URL="http://localhost:5173"
-VITE_API_URL="http://localhost:4000"
+VITE_API_URL=""
 ```
 
 ## Local Database
@@ -263,7 +263,42 @@ Before a real deployment, change:
 ```env
 JWT_SECRET="change-me-before-production"
 FRONTEND_URL="https://your-domain.com"
-VITE_API_URL="https://your-api-domain.com"
+VITE_API_URL=""
+```
+
+## Deploy To Railway
+
+This repo is ready for a simple Railway deployment as one web service plus one PostgreSQL database. The backend Dockerfile builds both apps, runs Prisma migrations on startup, serves the React build, and exposes the Nest API under `/api`.
+
+1. Push this repo to GitHub.
+2. In Railway, create a new project from the GitHub repo.
+3. Add a PostgreSQL database to the same Railway project.
+4. Railway will inject `DATABASE_URL` from the database service.
+5. Set these variables on the web service:
+
+```env
+JWT_SECRET="use-a-long-random-secret"
+JWT_EXPIRES_IN="7d"
+VITE_API_URL=""
+```
+
+Optional after the first deploy:
+
+```env
+FRONTEND_URL="https://your-railway-domain.up.railway.app"
+```
+
+The included `railway.json` points Railway at `backend/Dockerfile` and checks `/api/health`. The generated Railway domain serves both the UI and API:
+
+```text
+app: https://your-railway-domain.up.railway.app
+api: https://your-railway-domain.up.railway.app/api/health
+```
+
+If you prefer deploying from your terminal after installing the Railway CLI:
+
+```bash
+./scripts/railway-deploy.sh
 ```
 
 ## GitHub Push

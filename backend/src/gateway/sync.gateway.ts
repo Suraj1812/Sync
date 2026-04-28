@@ -29,12 +29,18 @@ type CallPayload = {
   candidate?: unknown;
 };
 
+function corsOrigin(frontendUrl?: string) {
+  const origins = (frontendUrl ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  return origins.length > 0 ? origins : true;
+}
+
 @WebSocketGateway({
   cors: {
-    origin: (process.env.FRONTEND_URL ?? 'http://localhost:5173')
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean),
+    origin: corsOrigin(process.env.FRONTEND_URL),
     credentials: true,
   },
 })

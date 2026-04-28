@@ -13,7 +13,10 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY backend backend
-RUN pnpm --filter backend prisma:generate && pnpm --filter backend build
+COPY frontend frontend
+ARG VITE_API_URL=
+ENV VITE_API_URL=$VITE_API_URL
+RUN pnpm --filter backend prisma:generate && pnpm --filter backend build && pnpm --filter frontend build
 
 FROM base AS runtime
 ENV NODE_ENV=production
@@ -22,6 +25,7 @@ COPY backend/package.json backend/package.json
 RUN pnpm install --frozen-lockfile --prod --filter backend
 COPY --from=build /app/backend/dist backend/dist
 COPY --from=build /app/backend/prisma backend/prisma
+COPY --from=build /app/frontend/dist backend/public
 RUN pnpm --filter backend prisma:generate
 COPY backend/docker-entrypoint.sh backend/docker-entrypoint.sh
 RUN chmod +x backend/docker-entrypoint.sh
