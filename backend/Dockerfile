@@ -21,6 +21,7 @@ COPY backend/package.json backend/package.json
 RUN pnpm install --frozen-lockfile --prod --filter backend
 COPY --from=build /app/backend/dist backend/dist
 COPY --from=build /app/backend/prisma backend/prisma
+RUN pnpm --filter backend prisma:generate
 COPY backend/docker-entrypoint.sh backend/docker-entrypoint.sh
 RUN chmod +x backend/docker-entrypoint.sh
 EXPOSE 4000
