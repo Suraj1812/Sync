@@ -44,7 +44,7 @@ function findParticipantById(conversations: Conversation[], userId: string) {
 }
 
 const railButtonClass =
-  'h-12 w-12 rounded-2xl px-0 text-white/75 hover:bg-white/15 hover:text-white focus-visible:ring-white/20 [&_svg]:h-[22px] [&_svg]:w-[22px]';
+  'h-12 w-12 rounded-2xl px-0 text-slate-300 hover:bg-white/10 hover:text-white focus-visible:ring-white/20 [&_svg]:h-[22px] [&_svg]:w-[22px]';
 
 const iconButtonClass =
   'h-10 w-10 rounded-xl border border-slate-200 bg-slate-50 px-0 text-slate-700 shadow-sm hover:border-slate-300 hover:bg-white hover:text-slate-950 focus-visible:ring-blue-100 sm:h-11 sm:w-11 [&_svg]:h-5 [&_svg]:w-5 sm:[&_svg]:h-[21px] sm:[&_svg]:w-[21px]';
@@ -172,7 +172,7 @@ export function AppLayout() {
   return (
     <main className="h-[100dvh] overflow-hidden bg-slate-100 p-0 text-ink md:p-3">
       <div className="flex h-full overflow-hidden bg-white shadow-[0_20px_70px_rgba(15,23,42,0.08)] md:rounded-[28px] md:border md:border-slate-200">
-        <nav className="hidden w-20 shrink-0 flex-col items-center border-r border-teal-200/10 bg-[linear-gradient(180deg,#1d4ed8_0%,#0f766e_52%,#be123c_100%)] py-5 shadow-[inset_-1px_0_rgba(255,255,255,0.08)] md:flex">
+        <nav className="hidden w-20 shrink-0 flex-col items-center border-r border-slate-900 bg-[#101828] py-5 shadow-[inset_-1px_0_rgba(255,255,255,0.06)] md:flex">
           <div className="flex flex-1 flex-col gap-3">
             <Button
               aria-label="Messages"
