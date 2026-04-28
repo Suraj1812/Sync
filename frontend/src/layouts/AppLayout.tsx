@@ -43,9 +43,6 @@ function findParticipantById(conversations: Conversation[], userId: string) {
     .find((item) => item.id === userId);
 }
 
-const railButtonClass =
-  'h-12 w-12 rounded-2xl px-0 text-slate-300 hover:bg-white/10 hover:text-white focus-visible:ring-white/20 [&_svg]:h-[22px] [&_svg]:w-[22px]';
-
 const iconButtonClass =
   'h-10 w-10 rounded-xl border border-slate-200 bg-slate-50 px-0 text-slate-700 shadow-sm hover:border-slate-300 hover:bg-white hover:text-slate-950 focus-visible:ring-blue-100 sm:h-11 sm:w-11 [&_svg]:h-5 [&_svg]:w-5 sm:[&_svg]:h-[21px] sm:[&_svg]:w-[21px]';
 
@@ -172,34 +169,6 @@ export function AppLayout() {
   return (
     <main className="h-[100dvh] overflow-hidden bg-slate-100 p-0 text-ink md:p-3">
       <div className="flex h-full overflow-hidden bg-white shadow-[0_20px_70px_rgba(15,23,42,0.08)] md:rounded-[28px] md:border md:border-slate-200">
-        <nav className="hidden w-20 shrink-0 flex-col items-center border-r border-slate-900 bg-[#101828] py-5 shadow-[inset_-1px_0_rgba(255,255,255,0.06)] md:flex">
-          <div className="flex flex-1 flex-col gap-3">
-            <Button
-              aria-label="Messages"
-              title="Messages"
-              variant="ghost"
-              className={clsx(railButtonClass, '!bg-white !text-slate-950 shadow-sm hover:!bg-white hover:!text-slate-950')}
-              icon={<MessageCircle size={22} />}
-            />
-            <Button
-              aria-label="Find people"
-              title="Find people"
-              variant="ghost"
-              className={railButtonClass}
-              onClick={() => setSearchOpen(true)}
-              icon={<UserPlus size={22} />}
-            />
-          </div>
-          <Button
-            aria-label="Settings"
-            title="Profile settings"
-            variant="ghost"
-            className={railButtonClass}
-            onClick={() => setProfileOpen(true)}
-            icon={<Settings size={22} />}
-          />
-        </nav>
-
         <aside
           className={clsx(
             'absolute inset-y-0 left-0 z-30 w-[min(92vw,24rem)] border-r border-slate-200 bg-white shadow-2xl transition-transform md:static md:block md:w-[380px] md:max-w-[380px] md:translate-x-0 md:shadow-none lg:w-[420px] lg:max-w-[420px]',
@@ -630,13 +599,17 @@ function ProfileModal({
   const [status, setStatus] = useState(user.status ?? '');
   const [avatar, setAvatar] = useState(user.avatar ?? '');
   const [avatarError, setAvatarError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setName(user.name);
     setStatus(user.status ?? '');
     setAvatar(user.avatar ?? '');
     setAvatarError('');
-  }, [user]);
+    setSaveError('');
+    setSaving(false);
+  }, [open, user]);
 
   function onAvatarFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -652,9 +625,18 @@ function ProfileModal({
 
   async function save(event: FormEvent) {
     event.preventDefault();
-    const updated = await userApi.updateMe({ name, status, avatar: avatar.trim() || undefined });
-    onSaved(updated);
-    onClose();
+    if (saving) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      const updated = await userApi.updateMe({ name: name.trim(), status: status.trim(), avatar: avatar.trim() || undefined });
+      onSaved(updated);
+      onClose();
+    } catch {
+      setSaveError('Could not save profile. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -679,7 +661,10 @@ function ProfileModal({
         </div>
         <Input label="Name" value={name} onChange={(event) => setName(event.target.value)} required />
         <Input label="Status" value={status} onChange={(event) => setStatus(event.target.value)} placeholder="Available" />
-        <Button className="h-11 w-full rounded-xl">Save changes</Button>
+        {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+        <Button className="h-11 w-full rounded-xl" disabled={saving || !name.trim()}>
+          {saving ? 'Saving...' : 'Save changes'}
+        </Button>
       </form>
     </Modal>
   );
