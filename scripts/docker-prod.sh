@@ -18,4 +18,14 @@ MSG
   exit 1
 fi
 
-docker compose up --build
+docker compose up -d --build
+
+cat <<'MSG'
+Sync is running:
+  Web: http://localhost:8080
+  API: http://localhost:4000/api/health
+
+Useful commands:
+  docker compose logs -f
+  docker compose down
+MSG
