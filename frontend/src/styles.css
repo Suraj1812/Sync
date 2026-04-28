@@ -22,6 +22,15 @@ textarea {
   font: inherit;
 }
 
+svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+button svg {
+  stroke-width: 2.25;
+}
+
 .thin-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;

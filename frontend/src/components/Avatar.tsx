@@ -12,10 +12,10 @@ export function Avatar({ user, size = 'md' }: { user: Pick<User, 'name' | 'avata
     <div className="relative shrink-0">
       <div
         className={clsx(
-          'grid place-items-center overflow-hidden rounded-full bg-gray-900 text-white',
+          'grid place-items-center overflow-hidden rounded-full bg-ink font-semibold text-white shadow-sm ring-1 ring-black/5',
           size === 'sm' && 'h-8 w-8 text-xs',
-          size === 'md' && 'h-10 w-10 text-sm',
-          size === 'lg' && 'h-16 w-16 text-lg',
+          size === 'md' && 'h-11 w-11 text-sm',
+          size === 'lg' && 'h-[72px] w-[72px] text-xl',
         )}
       >
         {user.avatar ? <img src={user.avatar} alt="" className="h-full w-full object-cover" /> : initials}
