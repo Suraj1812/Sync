@@ -19,7 +19,7 @@ docker compose up -d --build
 cat <<'MSG'
 Sync is running:
   Web: http://localhost:8080
-  API: http://localhost:4000/api/health
+  API: http://localhost:8080/api/health
 
 Useful commands:
   docker compose logs -f
