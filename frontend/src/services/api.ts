@@ -39,3 +39,10 @@ export const chatApi = {
   messages: (conversationId: string) =>
     api.get<Message[]>(`/chat/conversations/${conversationId}/messages`).then((res) => res.data),
 };
+
+export function getApiErrorMessage(error: unknown, fallback: string) {
+  if (!axios.isAxiosError(error)) return fallback;
+  const message = error.response?.data?.message;
+  if (Array.isArray(message)) return message[0] ?? fallback;
+  return typeof message === 'string' ? message : fallback;
+}

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { PasswordInput } from '../components/PasswordInput';
+import { getApiErrorMessage } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { AuthShell } from './AuthShell';
 
@@ -19,10 +20,10 @@ export function LoginPage() {
     setSubmitting(true);
     setError('');
     try {
-      await login(email, password);
+      await login(email.trim().toLowerCase(), password);
       navigate('/');
-    } catch {
-      setError('Check your email and password, then try again.');
+    } catch (error) {
+      setError(getApiErrorMessage(error, 'Check your email and password, then try again.'));
     } finally {
       setSubmitting(false);
     }

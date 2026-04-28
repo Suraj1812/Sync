@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { PasswordInput } from '../components/PasswordInput';
+import { getApiErrorMessage } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { AuthShell } from './AuthShell';
 
@@ -20,10 +21,11 @@ export function RegisterPage() {
     setSubmitting(true);
     setError('');
     try {
-      await register(name, email, password);
+      await register(name.trim(), email.trim().toLowerCase(), password);
       navigate('/');
-    } catch {
-      setError('Could not create that account. Try a different email.');
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Could not create that account. Try again.');
+      setError(message === 'Email is already registered' ? 'Email is already registered. Sign in instead.' : message);
     } finally {
       setSubmitting(false);
     }
