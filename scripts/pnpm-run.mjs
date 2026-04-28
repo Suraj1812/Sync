@@ -9,7 +9,10 @@ const args = process.argv.slice(2);
 
 let command = 'pnpm';
 let commandArgs = args;
-let env = { ...process.env };
+let env = {
+  ...process.env,
+  XDG_CACHE_HOME: process.env.XDG_CACHE_HOME ?? resolve(root, '.cache'),
+};
 
 if (process.env.npm_execpath?.includes('pnpm')) {
   if (/\.[cm]?js$/.test(process.env.npm_execpath)) {

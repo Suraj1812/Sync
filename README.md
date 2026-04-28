@@ -41,9 +41,11 @@ Sync/
   .env.example
   docker-compose.dev.yml
   docker-compose.yml
+  .github/workflows/ci.yml
   package.json
   pnpm-lock.yaml
   pnpm-workspace.yaml
+  scripts/
   README.md
 ```
 
@@ -183,9 +185,10 @@ VITE_API_URL="http://localhost:4000"
 Start PostgreSQL with Docker:
 
 ```bash
-pnpm db:start
-pnpm prisma:deploy
+./scripts/docker-dev.sh
 ```
+
+That script starts the Postgres container, deploys Prisma migrations, and launches both apps.
 
 If you do not have Docker running, start any local PostgreSQL server on port `5432` with:
 
@@ -234,8 +237,7 @@ pnpm dev
 ## Production Build
 
 ```bash
-pnpm lint
-pnpm build
+./scripts/local-check.sh
 ```
 
 ## Production With Docker
@@ -243,7 +245,7 @@ pnpm build
 Build and run the production-style stack:
 
 ```bash
-docker compose up --build
+./scripts/docker-prod.sh
 ```
 
 Services:
@@ -263,6 +265,32 @@ JWT_SECRET="change-me-before-production"
 FRONTEND_URL="https://your-domain.com"
 VITE_API_URL="https://your-api-domain.com"
 ```
+
+## GitHub Push
+
+The repository remote is configured as:
+
+```text
+https://github.com/Suraj1812/Sync.git
+```
+
+Authenticate and push:
+
+```bash
+./scripts/git-auth-and-push.sh
+```
+
+The script uses the workspace-local GitHub CLI if present, otherwise falls back to a normal `gh` install. It stores auth config under `.tools/gh-config`, wires Git credentials, and pushes `main`.
+
+## CI
+
+GitHub Actions runs on pushes and pull requests to `main`:
+
+- install dependencies
+- generate Prisma Client
+- validate Prisma schema
+- lint
+- build backend and frontend
 
 ## Features
 

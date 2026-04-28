@@ -1,6 +1,8 @@
 node_modules
 .pnpm-store
 .tools
+.docker-home
+.cache
 dist
 .env
 .env.local
