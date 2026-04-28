@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { EmojiClickData } from 'emoji-picker-react';
 import {
   LogOut,
@@ -28,7 +28,7 @@ import { getSocket } from '../services/socket';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
 import type { ActiveCall, Conversation, IncomingCall, Message, User } from '../types';
-import { formatPresence, formatTime } from '../utils/time';
+import { formatMessageDay, formatPresence, formatTime, isSameCalendarDay } from '../utils/time';
 
 const EmojiPicker = lazy(() => import('emoji-picker-react'));
 
@@ -92,6 +92,13 @@ export function AppLayout() {
     void loadMessages(activeConversationId);
     socket.emit('message:seen', { conversationId: activeConversationId });
   }, [activeConversationId, loadMessages, socket]);
+
+  const activeMessageCount = activeConversationId ? (messages[activeConversationId]?.length ?? 0) : 0;
+
+  useEffect(() => {
+    if (!activeConversationId || !socket || activeMessageCount === 0) return;
+    socket.emit('message:seen', { conversationId: activeConversationId });
+  }, [activeConversationId, activeMessageCount, socket]);
 
   if (!user || !token) return null;
 
@@ -341,6 +348,7 @@ function ConversationList({
           conversations.map((conversation) => {
             const peer = otherParticipant(conversation, currentUser.id);
             const lastMessage = conversation.messages[0];
+            const unreadCount = conversation.unreadCount ?? 0;
             if (!peer) return null;
             return (
               <button
@@ -354,10 +362,21 @@ function ConversationList({
                 <Avatar user={peer} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="truncate text-sm font-semibold">{peer.name}</p>
+                    <p className={clsx('truncate text-sm', unreadCount > 0 ? 'font-semibold text-slate-950' : 'font-semibold')}>
+                      {peer.name}
+                    </p>
                     <span className="shrink-0 text-xs text-muted">{formatTime(lastMessage?.createdAt)}</span>
                   </div>
-                  <p className="mt-1 truncate text-sm text-muted">{lastMessage?.content ?? formatPresence(peer.isOnline, peer.lastSeen)}</p>
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    <p className={clsx('truncate text-sm', unreadCount > 0 ? 'font-medium text-slate-900' : 'text-muted')}>
+                      {lastMessage ? `${lastMessage.senderId === currentUser.id ? 'You: ' : ''}${lastMessage.content}` : formatPresence(peer.isOnline, peer.lastSeen)}
+                    </p>
+                    {unreadCount > 0 && (
+                      <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-brand px-1.5 text-[11px] font-semibold text-white">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </button>
             );
@@ -471,9 +490,16 @@ function ConversationView({
 
       <div className="thin-scrollbar flex-1 overflow-y-auto bg-[#f6f8fb]">
         <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col justify-end space-y-3 px-5 py-7 md:px-8">
-          {messages.map((message) => (
-            <ChatBubble key={message.id} message={message} mine={message.senderId === user.id} />
-          ))}
+          {messages.map((message, index) => {
+            const previous = messages[index - 1];
+            const showDay = !previous || !isSameCalendarDay(previous.createdAt, message.createdAt);
+            return (
+              <Fragment key={message.id}>
+                {showDay && <DateSeparator label={formatMessageDay(message.createdAt)} />}
+                <ChatBubble message={message} mine={message.senderId === user.id} />
+              </Fragment>
+            );
+          })}
           <div ref={bottomRef} />
         </div>
       </div>
@@ -516,6 +542,16 @@ function ConversationView({
           />
         </div>
       </form>
+    </div>
+  );
+}
+
+function DateSeparator({ label }: { label: string }) {
+  return (
+    <div className="flex justify-center py-2">
+      <span className="rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-medium text-slate-500 shadow-sm">
+        {label}
+      </span>
     </div>
   );
 }

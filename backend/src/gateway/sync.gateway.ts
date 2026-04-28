@@ -92,21 +92,27 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('message:send')
   async sendMessage(@ConnectedSocket() client: AuthedSocket, @MessageBody() dto: SendMessageDto) {
     if (!client.user) return;
-    const message = await this.chat.sendMessage(client.user.id, dto.conversationId, dto.content);
     const participantIds = await this.chat.getParticipantIds(dto.conversationId);
-    participantIds.forEach((id) => this.server.to(this.userRoom(id)).emit('message:new', message));
-    this.server.to(this.conversationRoom(dto.conversationId)).emit('message:new', message);
-    return message;
+    const receiverIds = participantIds.filter((id) => id !== client.user?.id);
+    const receiverOnline = receiverIds.some((id) => this.onlineUsers.has(id));
+    const message = await this.chat.sendMessage(client.user.id, dto.conversationId, dto.content);
+    const outgoing = receiverOnline ? await this.chat.markDelivered(message.id) : message;
+    participantIds.forEach((id) => this.server.to(this.userRoom(id)).emit('message:new', outgoing));
+    this.server.to(this.conversationRoom(dto.conversationId)).emit('message:new', outgoing);
+    return outgoing;
   }
 
   @SubscribeMessage('message:seen')
   async seen(@ConnectedSocket() client: AuthedSocket, @MessageBody() dto: SeenMessageDto) {
     if (!client.user) return;
     const result = await this.chat.markSeen(client.user.id, dto.conversationId);
-    this.server.to(this.conversationRoom(dto.conversationId)).emit('message:seen', {
+    const participantIds = await this.chat.getParticipantIds(dto.conversationId);
+    const payload = {
       ...result,
       seenBy: client.user.id,
-    });
+    };
+    participantIds.forEach((id) => this.server.to(this.userRoom(id)).emit('message:seen', payload));
+    this.server.to(this.conversationRoom(dto.conversationId)).emit('message:seen', payload);
   }
 
   @SubscribeMessage('typing:start')

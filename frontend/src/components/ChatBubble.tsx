@@ -1,8 +1,10 @@
-import { CheckCheck } from 'lucide-react';
+import { Check, CheckCheck } from 'lucide-react';
 import type { Message } from '../types';
 import { formatTime } from '../utils/time';
 
 export function ChatBubble({ message, mine }: { message: Message; mine: boolean }) {
+  const status = message.seen ? 'Read' : message.delivered ? 'Delivered' : 'Sent';
+
   return (
     <div className={`flex animate-[fadeIn_.16s_ease-out] ${mine ? 'justify-end' : 'justify-start'}`}>
       <div
@@ -13,7 +15,15 @@ export function ChatBubble({ message, mine }: { message: Message; mine: boolean 
         <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
         <div className={`mt-1 flex items-center justify-end gap-1 text-[11px] ${mine ? 'text-blue-100' : 'text-muted'}`}>
           {formatTime(message.createdAt)}
-          {mine && <CheckCheck size={13} className={message.seen ? 'text-blue-100' : 'text-blue-200/60'} />}
+          {mine && (
+            <span className="inline-flex items-center gap-0.5" title={status} aria-label={status}>
+              {message.seen || message.delivered ? (
+                <CheckCheck size={14} className={message.seen ? 'text-cyan-200' : 'text-blue-100'} />
+              ) : (
+                <Check size={14} className="text-blue-200/70" />
+              )}
+            </span>
+          )}
         </div>
       </div>
     </div>

@@ -49,6 +49,7 @@ model Message {
   conversationId String
   senderId       String
   content        String
+  delivered      Boolean      @default(false)
   seen           Boolean      @default(false)
   createdAt      DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

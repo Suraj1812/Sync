@@ -6,7 +6,7 @@ export class ChatService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listConversations(userId: string) {
-    return this.prisma.conversation.findMany({
+    const conversations = await this.prisma.conversation.findMany({
       where: { participants: { some: { userId } } },
       include: {
         participants: { include: { user: { select: this.userSelect() } } },
@@ -18,6 +18,7 @@ export class ChatService {
       },
       orderBy: { updatedAt: 'desc' },
     });
+    return this.withUnreadCounts(userId, conversations);
   }
 
   async startConversation(currentUserId: string, otherUserId: string) {
@@ -42,9 +43,9 @@ export class ChatService {
         },
       },
     });
-    if (existing) return existing;
+    if (existing) return { ...existing, unreadCount: 0 };
 
-    return this.prisma.conversation.create({
+    const conversation = await this.prisma.conversation.create({
       data: {
         participants: {
           create: [{ userId: currentUserId }, { userId: otherUserId }],
@@ -52,9 +53,14 @@ export class ChatService {
       },
       include: {
         participants: { include: { user: { select: this.userSelect() } } },
-        messages: true,
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: { sender: { select: this.userSelect() } },
+        },
       },
     });
+    return { ...conversation, unreadCount: 0 };
   }
 
   async getMessages(userId: string, conversationId: string) {
@@ -84,9 +90,17 @@ export class ChatService {
     await this.assertParticipant(userId, conversationId);
     await this.prisma.message.updateMany({
       where: { conversationId, senderId: { not: userId }, seen: false },
-      data: { seen: true },
+      data: { seen: true, delivered: true },
     });
     return { conversationId };
+  }
+
+  markDelivered(messageId: string) {
+    return this.prisma.message.update({
+      where: { id: messageId },
+      data: { delivered: true },
+      include: { sender: { select: this.userSelect() } },
+    });
   }
 
   async getParticipantIds(conversationId: string) {
@@ -115,5 +129,20 @@ export class ChatService {
       isOnline: true,
       lastSeen: true,
     } as const;
+  }
+
+  private async withUnreadCounts<T extends { id: string }>(userId: string, conversations: T[]) {
+    return Promise.all(
+      conversations.map(async (conversation) => ({
+        ...conversation,
+        unreadCount: await this.prisma.message.count({
+          where: {
+            conversationId: conversation.id,
+            senderId: { not: userId },
+            seen: false,
+          },
+        }),
+      })),
+    );
   }
 }

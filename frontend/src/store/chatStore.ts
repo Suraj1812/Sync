@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { chatApi } from '../services/api';
+import { useAuthStore } from './authStore';
 import type { Conversation, Message, User } from '../types';
 
 type ChatState = {
@@ -32,20 +33,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
   addMessage: (message) => {
     const current = get().messages[message.conversationId] ?? [];
     if (current.some((item) => item.id === message.id)) return;
+    const currentUserId = useAuthStore.getState().user?.id;
+    const isIncoming = message.senderId !== currentUserId;
+    const isActive = get().activeConversationId === message.conversationId;
     set({
       messages: { ...get().messages, [message.conversationId]: [...current, message] },
       conversations: get().conversations.map((conversation) =>
         conversation.id === message.conversationId
-          ? { ...conversation, messages: [message], updatedAt: message.createdAt }
+          ? {
+              ...conversation,
+              messages: [message],
+              updatedAt: message.createdAt,
+              unreadCount: isIncoming && !isActive ? (conversation.unreadCount ?? 0) + 1 : (conversation.unreadCount ?? 0),
+            }
           : conversation,
       ),
     });
   },
   markSeen: (conversationId, seenBy) => {
+    const currentUserId = useAuthStore.getState().user?.id;
     const messages = (get().messages[conversationId] ?? []).map((message) =>
-      message.senderId !== seenBy ? { ...message, seen: true } : message,
+      message.senderId !== seenBy ? { ...message, delivered: true, seen: true } : message,
     );
-    set({ messages: { ...get().messages, [conversationId]: messages } });
+    const conversations = get().conversations.map((conversation) => {
+      if (conversation.id !== conversationId) return conversation;
+      return {
+        ...conversation,
+        unreadCount: seenBy === currentUserId ? 0 : (conversation.unreadCount ?? 0),
+        messages: conversation.messages.map((message) =>
+          message.senderId !== seenBy ? { ...message, delivered: true, seen: true } : message,
+        ),
+      };
+    });
+    set({ messages: { ...get().messages, [conversationId]: messages }, conversations });
   },
   setTyping: (conversationId, userId) =>
     set({ typingByConversation: { ...get().typingByConversation, [conversationId]: userId } }),

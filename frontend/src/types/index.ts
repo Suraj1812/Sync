@@ -13,6 +13,7 @@ export type Message = {
   conversationId: string;
   senderId: string;
   content: string;
+  delivered: boolean;
   seen: boolean;
   createdAt: string;
   sender: User;
@@ -24,6 +25,7 @@ export type Conversation = {
   updatedAt: string;
   participants: { id: string; userId: string; user: User }[];
   messages: Message[];
+  unreadCount: number;
 };
 
 export type IncomingCall = {
