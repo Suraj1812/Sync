@@ -35,10 +35,10 @@ function otherParticipant(conversation: Conversation, currentUserId: string) {
 }
 
 const railButtonClass =
-  'h-11 w-11 rounded-xl px-0 text-slate-600 hover:bg-slate-100 hover:text-ink [&_svg]:h-5 [&_svg]:w-5';
+  'h-12 w-12 rounded-2xl px-0 text-white/70 hover:bg-white/10 hover:text-white focus-visible:ring-white/20 [&_svg]:h-[22px] [&_svg]:w-[22px]';
 
 const iconButtonClass =
-  'h-10 w-10 rounded-xl border border-line bg-white px-0 text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50 hover:text-ink [&_svg]:h-5 [&_svg]:w-5';
+  'h-11 w-11 rounded-xl border border-slate-200 bg-slate-50 px-0 text-slate-700 shadow-sm hover:border-slate-300 hover:bg-white hover:text-slate-950 focus-visible:ring-blue-100 [&_svg]:h-[21px] [&_svg]:w-[21px]';
 
 export function AppLayout() {
   const { user, token, logout, setUser } = useAuthStore();
@@ -152,37 +152,42 @@ export function AppLayout() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-[#f8fafc] text-ink">
-      <div className="flex h-full">
-        <nav className="hidden w-[72px] shrink-0 flex-col items-center border-r border-line bg-white/95 py-4 md:flex">
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-ink text-sm font-semibold text-white shadow-sm">S</div>
-          <div className="mt-8 flex flex-1 flex-col gap-2">
+    <main className="h-screen overflow-hidden bg-slate-100 p-0 text-ink md:p-3">
+      <div className="flex h-full overflow-hidden bg-white shadow-[0_20px_70px_rgba(15,23,42,0.08)] md:rounded-[28px] md:border md:border-slate-200">
+        <nav className="hidden w-20 shrink-0 flex-col items-center border-r border-slate-900/80 bg-slate-950 py-5 md:flex">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-brand text-sm font-semibold text-white shadow-[0_10px_30px_rgba(37,99,235,0.35)]">
+            S
+          </div>
+          <div className="mt-8 flex flex-1 flex-col gap-3">
             <Button
               aria-label="Messages"
+              title="Messages"
               variant="ghost"
-              className={clsx(railButtonClass, 'bg-ink text-white shadow-sm hover:bg-ink hover:text-white')}
-              icon={<MessageCircle />}
+              className={clsx(railButtonClass, '!bg-white !text-slate-950 shadow-sm hover:!bg-white hover:!text-slate-950')}
+              icon={<MessageCircle size={22} />}
             />
             <Button
               aria-label="Find people"
+              title="Find people"
               variant="ghost"
               className={railButtonClass}
               onClick={() => setSearchOpen(true)}
-              icon={<UserPlus />}
+              icon={<UserPlus size={22} />}
             />
           </div>
           <Button
             aria-label="Settings"
+            title="Profile settings"
             variant="ghost"
             className={railButtonClass}
             onClick={() => setProfileOpen(true)}
-            icon={<Settings />}
+            icon={<Settings size={22} />}
           />
         </nav>
 
         <aside
           className={clsx(
-            'absolute inset-y-0 left-0 z-30 w-full max-w-sm border-r border-line bg-white transition-transform md:static md:block md:w-[380px] md:max-w-[380px] md:translate-x-0',
+            'absolute inset-y-0 left-0 z-30 w-full max-w-sm border-r border-slate-200 bg-white transition-transform md:static md:block md:w-[420px] md:max-w-[420px] md:translate-x-0',
             mobileListOpen ? 'translate-x-0' : '-translate-x-full',
           )}
         >
@@ -263,20 +268,57 @@ function ConversationList({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-20 items-center justify-between border-b border-line px-5">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+      <header className="border-b border-slate-200 px-5 py-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase text-slate-400">Sync</p>
+            <h1 className="mt-1 text-xl font-semibold text-slate-950">Messages</h1>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              aria-label="Search users"
+              title="Search users"
+              variant="soft"
+              className={iconButtonClass}
+              onClick={onSearch}
+              icon={<Search size={21} />}
+            />
+            <Button
+              aria-label="Profile"
+              title="Profile"
+              variant="soft"
+              className={iconButtonClass}
+              onClick={onProfile}
+              icon={<Settings size={21} />}
+            />
+            <Button
+              aria-label="Logout"
+              title="Logout"
+              variant="soft"
+              className={iconButtonClass}
+              onClick={onLogout}
+              icon={<LogOut size={21} />}
+            />
+            <Button
+              aria-label="Close"
+              title="Close"
+              variant="soft"
+              className={clsx(iconButtonClass, 'md:hidden')}
+              onClick={onClose}
+              icon={<X size={21} />}
+            />
+          </div>
+        </div>
+        <button
+          className="mt-5 flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-slate-300 hover:bg-white"
+          onClick={onProfile}
+        >
           <Avatar user={currentUser} />
           <div className="min-w-0">
             <h2 className="truncate text-sm font-semibold">{currentUser.name}</h2>
-            <p className="text-xs text-muted">Available</p>
+            <p className="truncate text-xs text-muted">{currentUser.status || 'Available'}</p>
           </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button aria-label="Search users" variant="soft" className={iconButtonClass} onClick={onSearch} icon={<Search />} />
-          <Button aria-label="Profile" variant="soft" className={iconButtonClass} onClick={onProfile} icon={<Settings />} />
-          <Button aria-label="Logout" variant="soft" className={iconButtonClass} onClick={onLogout} icon={<LogOut />} />
-          <Button aria-label="Close" variant="soft" className={clsx(iconButtonClass, 'md:hidden')} onClick={onClose} icon={<X />} />
-        </div>
+        </button>
       </header>
       <div className="thin-scrollbar flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
@@ -299,8 +341,8 @@ function ConversationList({
               <button
                 key={conversation.id}
                 className={clsx(
-                  'flex w-full items-center gap-3 border-b border-line px-5 py-4 text-left transition hover:bg-slate-50',
-                  activeId === conversation.id && 'bg-blue-50/80',
+                  'flex w-full items-center gap-3 border-b border-slate-100 px-5 py-4 text-left transition hover:bg-slate-50',
+                  activeId === conversation.id && 'bg-blue-50/90 ring-1 ring-inset ring-blue-100',
                 )}
                 onClick={() => onSelect(conversation.id)}
               >
@@ -366,16 +408,16 @@ function ConversationView({
   if (!conversation || !peer) {
     return (
       <div className="flex h-full flex-col">
-        <header className="flex h-16 items-center gap-3 border-b border-line bg-white px-4 md:hidden">
-          <Button aria-label="Menu" variant="soft" className={iconButtonClass} onClick={onMenu} icon={<Menu />} />
+        <header className="flex h-16 items-center gap-3 border-b border-slate-200 bg-white px-4 md:hidden">
+          <Button aria-label="Menu" variant="soft" className={iconButtonClass} onClick={onMenu} icon={<Menu size={21} />} />
           <span className="font-semibold">Sync</span>
         </header>
-        <div className="grid flex-1 place-items-center px-6 text-center">
+        <div className="grid flex-1 place-items-center bg-[#f6f8fb] px-6 text-center">
           <div>
-            <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-line bg-white text-brand shadow-soft">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-slate-200 bg-white text-brand shadow-soft">
               <MessageCircle size={28} />
             </div>
-            <h2 className="mt-5 text-lg font-semibold">Choose a conversation</h2>
+            <h2 className="mt-5 text-lg font-semibold text-slate-950">Choose a conversation</h2>
             <p className="mt-2 max-w-sm text-sm leading-6 text-muted">Select a chat or find someone new to start messaging.</p>
           </div>
         </div>
@@ -385,31 +427,46 @@ function ConversationView({
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-20 items-center justify-between border-b border-line bg-white px-5">
+      <header className="flex h-20 items-center justify-between border-b border-slate-200 bg-white px-5 md:px-8">
         <div className="flex min-w-0 items-center gap-3">
-          <Button aria-label="Menu" variant="soft" className={clsx(iconButtonClass, 'md:hidden')} onClick={onMenu} icon={<Menu />} />
+          <Button
+            aria-label="Menu"
+            variant="soft"
+            className={clsx(iconButtonClass, 'md:hidden')}
+            onClick={onMenu}
+            icon={<Menu size={21} />}
+          />
           <Avatar user={peer} />
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-semibold">{peer.name}</h1>
-            <p className="truncate text-xs text-muted">
+            <h1 className="truncate text-base font-semibold text-slate-950">{peer.name}</h1>
+            <p className="truncate text-sm text-muted">
               {typingUserId && typingUserId !== user.id ? 'Typing...' : formatPresence(peer.isOnline, peer.lastSeen)}
             </p>
           </div>
         </div>
-        <Button aria-label="Start video call" variant="soft" className={iconButtonClass} onClick={onStartCall} icon={<Phone />} />
+        <Button
+          aria-label="Start video call"
+          title="Start video call"
+          variant="soft"
+          className={iconButtonClass}
+          onClick={onStartCall}
+          icon={<Phone size={21} />}
+        />
       </header>
 
-      <div className="thin-scrollbar flex-1 space-y-3 overflow-y-auto px-4 py-5 md:px-8">
-        {messages.map((message) => (
-          <ChatBubble key={message.id} message={message} mine={message.senderId === user.id} />
-        ))}
-        <div ref={bottomRef} />
+      <div className="thin-scrollbar flex-1 overflow-y-auto bg-[#f6f8fb]">
+        <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col justify-end space-y-3 px-5 py-7 md:px-8">
+          {messages.map((message) => (
+            <ChatBubble key={message.id} message={message} mine={message.senderId === user.id} />
+          ))}
+          <div ref={bottomRef} />
+        </div>
       </div>
 
-      <form className="relative border-t border-line bg-white p-3 md:px-5" onSubmit={send}>
+      <form className="relative border-t border-slate-200 bg-white px-4 py-4 md:px-8" onSubmit={send}>
         {emojiOpen && (
-          <div className="absolute bottom-16 left-3 z-10">
-            <Suspense fallback={<div className="h-48 w-80 rounded-xl border border-line bg-white shadow-soft" />}>
+          <div className="absolute bottom-20 left-4 z-10 md:left-8">
+            <Suspense fallback={<div className="h-48 w-80 rounded-xl border border-slate-200 bg-white shadow-soft" />}>
               <EmojiPicker
                 width={320}
                 height={380}
@@ -419,23 +476,29 @@ function ConversationView({
             </Suspense>
           </div>
         )}
-        <div className="flex items-end gap-2">
+        <div className="mx-auto flex max-w-4xl items-end gap-3">
           <Button
             type="button"
             aria-label="Emoji"
+            title="Emoji"
             variant="soft"
             className={clsx(iconButtonClass, 'h-11 w-11 shrink-0')}
             onClick={() => setEmojiOpen((open) => !open)}
-            icon={<Smile />}
+            icon={<Smile size={21} />}
           />
           <textarea
-            className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-line bg-slate-50 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand focus:bg-white focus:ring-4 focus:ring-blue-100"
+            className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand focus:bg-white focus:ring-4 focus:ring-blue-100"
             rows={1}
             value={content}
             placeholder="Message"
             onChange={(event) => onTyping(event.target.value)}
           />
-          <Button className="h-11 w-11 shrink-0 rounded-xl px-0 [&_svg]:h-5 [&_svg]:w-5" aria-label="Send" icon={<Send />} />
+          <Button
+            className="h-11 w-11 shrink-0 rounded-2xl px-0 shadow-[0_10px_24px_rgba(37,99,235,0.25)] [&_svg]:h-[21px] [&_svg]:w-[21px]"
+            aria-label="Send"
+            title="Send"
+            icon={<Send size={21} />}
+          />
         </div>
       </form>
     </div>
