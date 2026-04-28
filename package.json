@@ -1,0 +1,47 @@
+{
+  "name": "sync",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.33.2",
+  "description": "Sync is a minimal real-time messaging and video calling platform.",
+  "scripts": {
+    "dev": "node scripts/pnpm-run.mjs -r --parallel dev",
+    "dev:frontend": "node scripts/pnpm-run.mjs --filter frontend dev",
+    "dev:backend": "node scripts/pnpm-run.mjs --filter backend start:dev",
+    "build": "node scripts/pnpm-run.mjs -r build",
+    "lint": "node scripts/pnpm-run.mjs -r lint",
+    "prisma:migrate": "node scripts/pnpm-run.mjs --filter backend prisma:migrate",
+    "prisma:generate": "node scripts/pnpm-run.mjs --filter backend prisma:generate",
+    "prisma:deploy": "node scripts/pnpm-run.mjs --filter backend prisma:deploy",
+    "prisma:push": "node scripts/pnpm-run.mjs --filter backend prisma:push",
+    "prisma:studio": "node scripts/pnpm-run.mjs --filter backend prisma:studio",
+    "db:start": "docker compose -f docker-compose.dev.yml up -d",
+    "db:stop": "docker compose -f docker-compose.dev.yml down",
+    "db:logs": "docker compose -f docker-compose.dev.yml logs -f postgres"
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "pnpm": {
+    "overrides": {
+      "rollup": "npm:@rollup/wasm-node@4.60.2"
+    },
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ]
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@typescript-eslint/eslint-plugin": "^8.46.3",
+    "@typescript-eslint/parser": "^8.46.3",
+    "eslint": "^9.39.4"
+  }
+}

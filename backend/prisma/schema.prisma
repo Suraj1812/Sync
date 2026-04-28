@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  passwordHash  String
+  avatar        String?
+  status        String?
+  isOnline      Boolean  @default(false)
+  lastSeen      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+  callsMade    CallLog[] @relation("Caller")
+  callsReceived CallLog[] @relation("Receiver")
+}
+
+model Conversation {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+  seen           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model CallLog {
+  id         String    @id @default(cuid())
+  callerId   String
+  receiverId String
+  status     CallStatus
+  startedAt  DateTime  @default(now())
+  endedAt    DateTime?
+  duration   Int?
+  caller     User      @relation("Caller", fields: [callerId], references: [id], onDelete: Cascade)
+  receiver   User      @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([callerId, receiverId, startedAt])
+}
+
+enum CallStatus {
+  RINGING
+  ACCEPTED
+  REJECTED
+  ENDED
+  MISSED
+  FAILED
+}
