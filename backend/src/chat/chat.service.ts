@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import type { DeleteMessageScope } from './dto';
 
 const MESSAGE_LIMIT = 100;
 
@@ -66,7 +67,7 @@ export class ChatService {
   async getMessages(userId: string, conversationId: string) {
     const participant = await this.assertParticipant(userId, conversationId);
     return this.prisma.message.findMany({
-      where: this.visibleMessageWhere(conversationId, participant.clearedAt),
+      where: this.visibleMessageWhere(conversationId, userId, participant.clearedAt),
       include: { sender: { select: this.userSelect() } },
       orderBy: { createdAt: 'asc' },
       take: MESSAGE_LIMIT,
@@ -96,7 +97,7 @@ export class ChatService {
     const participant = await this.assertParticipant(userId, conversationId);
     await this.prisma.message.updateMany({
       where: {
-        ...this.visibleMessageWhere(conversationId, participant.clearedAt),
+        ...this.visibleMessageWhere(conversationId, userId, participant.clearedAt),
         senderId: { not: userId },
         seen: false,
       },
@@ -110,6 +111,7 @@ export class ChatService {
       where: {
         delivered: false,
         deletedAt: null,
+        NOT: { deletions: { some: { userId } } },
         senderId: { not: userId },
         conversation: { participants: { some: { userId, deletedAt: null } } },
       },
@@ -126,6 +128,7 @@ export class ChatService {
         senderId: { not: userId },
         delivered: false,
         deletedAt: null,
+        NOT: { deletions: { some: { userId } } },
       },
       data: { delivered: true },
     });
@@ -155,7 +158,14 @@ export class ChatService {
     });
   }
 
-  async deleteMessage(userId: string, messageId: string) {
+  async deleteMessage(userId: string, messageId: string, scope: DeleteMessageScope = 'everyone') {
+    const nextScope = this.normalizeDeleteScope(scope);
+    return nextScope === 'me'
+      ? this.deleteMessageForMe(userId, messageId)
+      : this.deleteMessageForEveryone(userId, messageId);
+  }
+
+  private async deleteMessageForEveryone(userId: string, messageId: string) {
     const message = await this.prisma.message.findUnique({ where: { id: messageId } });
     if (!message || message.deletedAt) throw new NotFoundException('Message not found');
     if (message.senderId !== userId) throw new ForbiddenException('You can only delete your own messages');
@@ -170,7 +180,28 @@ export class ChatService {
       where: { id: deleted.conversationId },
       data: { updatedAt: new Date() },
     });
-    return { messageId: deleted.id, conversationId: deleted.conversationId, deletedBy: userId };
+    return { messageId: deleted.id, conversationId: deleted.conversationId, deletedBy: userId, scope: 'everyone' as const };
+  }
+
+  private async deleteMessageForMe(userId: string, messageId: string) {
+    const message = await this.prisma.message.findUnique({ where: { id: messageId } });
+    if (!message || message.deletedAt) throw new NotFoundException('Message not found');
+
+    await this.assertParticipant(userId, message.conversationId, { allowDeleted: true });
+    await this.prisma.messageDeletion.upsert({
+      where: { messageId_userId: { messageId, userId } },
+      update: {},
+      create: { messageId, userId },
+    });
+
+    if (message.senderId !== userId && !message.seen) {
+      await this.prisma.message.update({
+        where: { id: messageId },
+        data: { seen: true, delivered: true },
+      });
+    }
+
+    return { messageId: message.id, conversationId: message.conversationId, deletedBy: userId, scope: 'me' as const };
   }
 
   async clearConversation(userId: string, conversationId: string) {
@@ -235,7 +266,7 @@ export class ChatService {
   >(userId: string, conversation: T) {
     const participant = conversation.participants.find((item) => item.userId === userId);
     const messages = await this.prisma.message.findMany({
-      where: this.visibleMessageWhere(conversation.id, participant?.clearedAt ?? null),
+      where: this.visibleMessageWhere(conversation.id, userId, participant?.clearedAt ?? null),
       orderBy: { createdAt: 'desc' },
       take: 1,
       include: { sender: { select: this.userSelect() } },
@@ -243,10 +274,11 @@ export class ChatService {
     return { ...conversation, messages };
   }
 
-  private visibleMessageWhere(conversationId: string, clearedAt?: Date | null) {
+  private visibleMessageWhere(conversationId: string, userId: string, clearedAt?: Date | null) {
     return {
       conversationId,
       deletedAt: null,
+      NOT: { deletions: { some: { userId } } },
       ...(clearedAt ? { createdAt: { gt: clearedAt } } : {}),
     };
   }
@@ -257,6 +289,12 @@ export class ChatService {
     if (!trimmed) throw new BadRequestException('Message cannot be empty');
     if (trimmed.length > 4000) throw new BadRequestException('Message is too long');
     return trimmed;
+  }
+
+  private normalizeDeleteScope(scope?: string) {
+    if (!scope || scope === 'everyone') return 'everyone';
+    if (scope === 'me') return 'me';
+    throw new BadRequestException('Invalid delete option');
   }
 
   private userSelect() {
@@ -289,6 +327,7 @@ export class ChatService {
       where: {
         OR: visibilityFilters,
         deletedAt: null,
+        NOT: { deletions: { some: { userId } } },
         senderId: { not: userId },
         seen: false,
       },

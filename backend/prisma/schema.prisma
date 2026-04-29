@@ -21,6 +21,7 @@ model User {
 
   participants ConversationParticipant[]
   messages     Message[]
+  hiddenMessages MessageDeletion[]
   callsMade    CallLog[] @relation("Caller")
   callsReceived CallLog[] @relation("Receiver")
 
@@ -63,12 +64,26 @@ model Message {
   createdAt      DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  deletions      MessageDeletion[]
 
   @@index([conversationId, createdAt])
   @@index([conversationId, deletedAt, createdAt])
   @@index([conversationId, seen])
   @@index([senderId, seen])
   @@index([delivered, conversationId])
+}
+
+model MessageDeletion {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId, createdAt])
 }
 
 model CallLog {

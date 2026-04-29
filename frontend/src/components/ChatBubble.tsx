@@ -14,11 +14,12 @@ export function ChatBubble({
   onDelete?: (message: Message) => void;
 }) {
   const status = message.seen ? 'Read' : message.delivered ? 'Delivered' : 'Sent';
+  const showActions = Boolean(onEdit || onDelete);
 
   return (
     <div className={`group flex animate-[fadeIn_.16s_ease-out] items-center gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
-      {mine && (
-        <div className="order-first flex shrink-0 items-center gap-1 opacity-80 transition sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+      {showActions && (
+        <div className={`flex shrink-0 items-center gap-1 opacity-80 transition sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 ${mine ? 'order-first' : 'order-last'}`}>
           {onEdit && (
             <button
               aria-label="Edit message"

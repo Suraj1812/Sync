@@ -21,6 +21,15 @@ export type Message = {
   sender: User;
 };
 
+export type DeleteMessageScope = 'me' | 'everyone';
+
+export type DeletedMessagePayload = {
+  messageId: string;
+  conversationId: string;
+  deletedBy: string;
+  scope: DeleteMessageScope;
+};
+
 export type Conversation = {
   id: string;
   createdAt: string;

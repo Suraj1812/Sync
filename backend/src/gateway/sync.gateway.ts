@@ -131,9 +131,10 @@ export class SyncGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   @SubscribeMessage('message:delete')
   async deleteMessage(@ConnectedSocket() client: AuthedSocket, @MessageBody() dto: MessageActionDto) {
     if (!client.user || !dto?.messageId) return;
-    const result = await this.chat.deleteMessage(client.user.id, dto.messageId);
+    const result = await this.chat.deleteMessage(client.user.id, dto.messageId, dto.scope);
     const participantIds = await this.chat.getParticipantIds(result.conversationId);
-    participantIds.forEach((id) => this.server.to(this.userRoom(id)).emit('message:deleted', result));
+    if (result.scope === 'me') this.server.to(this.userRoom(client.user.id)).emit('message:deleted', result);
+    else participantIds.forEach((id) => this.server.to(this.userRoom(id)).emit('message:deleted', result));
     return result;
   }
 

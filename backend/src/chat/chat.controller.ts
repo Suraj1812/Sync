@@ -1,9 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthUser, CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RealtimeService } from '../realtime/realtime.service';
 import { ChatService } from './chat.service';
-import { EditMessageBodyDto, MessageContentDto, StartConversationDto } from './dto';
+import { DeleteMessageScope, EditMessageBodyDto, MessageContentDto, StartConversationDto } from './dto';
 
 @Controller('chat')
 @UseGuards(JwtAuthGuard)
@@ -45,10 +45,15 @@ export class ChatController {
   }
 
   @Delete('messages/:id')
-  async deleteMessage(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    const result = await this.chat.deleteMessage(user.id, id);
+  async deleteMessage(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Query('scope') scope: DeleteMessageScope = 'everyone',
+  ) {
+    const result = await this.chat.deleteMessage(user.id, id, scope);
     const participantIds = await this.chat.getParticipantIds(result.conversationId);
-    this.realtime.emitToUsers(participantIds, 'message:deleted', result);
+    if (result.scope === 'me') this.realtime.emitToUser(user.id, 'message:deleted', result);
+    else this.realtime.emitToUsers(participantIds, 'message:deleted', result);
     return result;
   }
 

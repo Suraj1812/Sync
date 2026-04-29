@@ -1,5 +1,5 @@
 import axios, { AxiosHeaders } from 'axios';
-import type { Conversation, Message, User } from '../types';
+import type { Conversation, DeletedMessagePayload, DeleteMessageScope, Message, User } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 const retryableMethods = new Set(['get', 'head', 'options']);
@@ -70,8 +70,8 @@ export const chatApi = {
     api.post<Message>(`/chat/conversations/${conversationId}/messages`, { content }).then((res) => res.data),
   editMessage: (messageId: string, content: string) =>
     api.patch<Message>(`/chat/messages/${messageId}`, { content }).then((res) => res.data),
-  deleteMessage: (messageId: string) =>
-    api.delete<{ messageId: string; conversationId: string; deletedBy: string }>(`/chat/messages/${messageId}`).then((res) => res.data),
+  deleteMessage: (messageId: string, scope: DeleteMessageScope = 'everyone') =>
+    api.delete<DeletedMessagePayload>(`/chat/messages/${messageId}`, { params: { scope } }).then((res) => res.data),
   clearConversation: (conversationId: string) =>
     api.post<{ conversationId: string; userId: string; clearedAt: string }>(`/chat/conversations/${conversationId}/clear`).then((res) => res.data),
   deleteConversation: (conversationId: string) =>

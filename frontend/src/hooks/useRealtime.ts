@@ -3,7 +3,7 @@ import { Socket } from 'socket.io-client';
 import { getSocket } from '../services/socket';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
-import type { IncomingCall, Message } from '../types';
+import type { DeletedMessagePayload, IncomingCall, Message } from '../types';
 
 type UseRealtimeOptions = {
   onIncomingCall: (call: IncomingCall) => void;
@@ -46,7 +46,7 @@ export function useRealtime(options: UseRealtimeOptions) {
       updateMessage(message);
       void useChatStore.getState().loadConversations({ force: true, silent: true });
     };
-    const onDeleted = (payload: { conversationId: string; messageId: string }) => {
+    const onDeleted = (payload: DeletedMessagePayload) => {
       deleteMessage(payload.conversationId, payload.messageId);
       void useChatStore.getState().loadConversations({ force: true, silent: true });
     };

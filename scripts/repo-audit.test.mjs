@@ -39,6 +39,7 @@ describe('static production audit', () => {
     assert.match(schema, /editedAt\s+DateTime\?/);
     assert.match(schema, /deletedAt\s+DateTime\?/);
     assert.match(schema, /clearedAt\s+DateTime\?/);
+    assert.match(schema, /model MessageDeletion/);
     assert.match(gateway, /message:edit/);
     assert.match(gateway, /message:delete/);
     assert.match(gateway, /conversation:clear/);
@@ -46,6 +47,8 @@ describe('static production audit', () => {
     assert.match(realtime, /emitToUsers/);
     assert.match(store, /force:\s*true/);
     assert.match(ui, /Edit message/);
+    assert.match(ui, /Delete for me/);
+    assert.match(ui, /Delete for everyone/);
     assert.match(ui, /Clear chat/);
     assert.match(ui, /Delete contact/);
   });

@@ -30,7 +30,7 @@ import { chatApi, userApi } from '../services/api';
 import { getSocket } from '../services/socket';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
-import type { ActiveCall, Conversation, IncomingCall, Message, User } from '../types';
+import type { ActiveCall, Conversation, DeletedMessagePayload, DeleteMessageScope, IncomingCall, Message, User } from '../types';
 import { MAX_AVATAR_LABEL, readAvatarFile } from '../utils/avatarUpload';
 import { formatMessageDay, formatPresence, formatTime, isSameCalendarDay } from '../utils/time';
 
@@ -467,6 +467,7 @@ function ConversationView({
   const [content, setContent] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Message | null>(null);
   const [threadMenuOpen, setThreadMenuOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'clear' | 'delete-contact' | null>(null);
   const [actionError, setActionError] = useState('');
@@ -498,6 +499,7 @@ function ConversationView({
   useEffect(() => {
     setContent('');
     setEditingMessage(null);
+    setDeleteTarget(null);
     setEmojiOpen(false);
     setThreadMenuOpen(false);
     setConfirmAction(null);
@@ -574,18 +576,24 @@ function ConversationView({
     setActionError('');
   }
 
-  async function deleteOwnMessage(message: Message) {
-    if (!conversation || actionBusy) return;
+  function requestDeleteMessage(message: Message) {
+    setDeleteTarget(message);
+    setActionError('');
+  }
+
+  async function deleteSelectedMessage(scope: DeleteMessageScope) {
+    if (!deleteTarget || actionBusy) return;
     setActionBusy(true);
     setActionError('');
     try {
-      const result = await emitWithFallback<{ conversationId: string; messageId: string }>(
+      const result = await emitWithFallback<DeletedMessagePayload>(
         'message:delete',
-        { messageId: message.id },
-        () => chatApi.deleteMessage(message.id),
+        { messageId: deleteTarget.id, scope },
+        () => chatApi.deleteMessage(deleteTarget.id, scope),
       );
       removeMessage(result.conversationId, result.messageId);
-      if (editingMessage?.id === message.id) cancelEditing();
+      if (editingMessage?.id === deleteTarget.id) cancelEditing();
+      setDeleteTarget(null);
     } catch {
       setActionError('Could not delete that message. Try again.');
     } finally {
@@ -760,7 +768,7 @@ function ConversationView({
                   message={message}
                   mine={message.senderId === user.id}
                   onEdit={message.senderId === user.id ? startEditing : undefined}
-                  onDelete={message.senderId === user.id ? deleteOwnMessage : undefined}
+                  onDelete={requestDeleteMessage}
                 />
               </Fragment>
             );
@@ -863,6 +871,59 @@ function ConversationView({
               onClick={runConversationAction}
             >
               {actionBusy ? 'Working...' : confirmAction === 'clear' ? 'Clear chat' : 'Delete contact'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+      <Modal
+        open={Boolean(deleteTarget)}
+        title="Delete message"
+        onClose={() => {
+          if (!actionBusy) {
+            setDeleteTarget(null);
+            setActionError('');
+          }
+        }}
+      >
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-muted">
+            {deleteTarget?.senderId === user.id
+              ? 'Delete only from your chat, or remove it for everyone in this conversation.'
+              : 'This removes the message from your chat only.'}
+          </p>
+          {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+          <div className="grid gap-3">
+            <Button
+              type="button"
+              variant="soft"
+              className="h-11 justify-start rounded-xl"
+              disabled={actionBusy}
+              onClick={() => void deleteSelectedMessage('me')}
+            >
+              Delete for me
+            </Button>
+            {deleteTarget?.senderId === user.id && (
+              <Button
+                type="button"
+                variant="danger"
+                className="h-11 justify-start rounded-xl"
+                disabled={actionBusy}
+                onClick={() => void deleteSelectedMessage('everyone')}
+              >
+                Delete for everyone
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-11 rounded-xl"
+              disabled={actionBusy}
+              onClick={() => {
+                setDeleteTarget(null);
+                setActionError('');
+              }}
+            >
+              Cancel
             </Button>
           </div>
         </div>
