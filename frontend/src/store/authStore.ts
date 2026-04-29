@@ -46,6 +46,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     localStorage.removeItem('sync_token');
     closeSocket();
+    window.dispatchEvent(new window.Event('sync:logout'));
     set({ user: null, token: null });
   },
 }));

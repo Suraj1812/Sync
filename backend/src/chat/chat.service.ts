@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -75,8 +75,11 @@ export class ChatService {
 
   async sendMessage(userId: string, conversationId: string, content: string) {
     await this.assertParticipant(userId, conversationId);
+    const trimmed = content.trim();
+    if (!trimmed) throw new BadRequestException('Message cannot be empty');
+
     const message = await this.prisma.message.create({
-      data: { conversationId, senderId: userId, content: content.trim() },
+      data: { conversationId, senderId: userId, content: trimmed },
       include: { sender: { select: this.userSelect() } },
     });
     await this.prisma.conversation.update({
@@ -93,6 +96,32 @@ export class ChatService {
       data: { seen: true, delivered: true },
     });
     return { conversationId };
+  }
+
+  async markDeliveredForUser(userId: string) {
+    const pending = await this.prisma.message.findMany({
+      where: {
+        delivered: false,
+        senderId: { not: userId },
+        conversation: { participants: { some: { userId } } },
+      },
+      distinct: ['conversationId'],
+      select: { conversationId: true },
+    });
+
+    const conversationIds = pending.map((item) => item.conversationId);
+    if (conversationIds.length === 0) return [];
+
+    await this.prisma.message.updateMany({
+      where: {
+        conversationId: { in: conversationIds },
+        senderId: { not: userId },
+        delivered: false,
+      },
+      data: { delivered: true },
+    });
+
+    return conversationIds;
   }
 
   markDelivered(messageId: string) {
@@ -132,17 +161,24 @@ export class ChatService {
   }
 
   private async withUnreadCounts<T extends { id: string }>(userId: string, conversations: T[]) {
-    return Promise.all(
-      conversations.map(async (conversation) => ({
-        ...conversation,
-        unreadCount: await this.prisma.message.count({
-          where: {
-            conversationId: conversation.id,
-            senderId: { not: userId },
-            seen: false,
-          },
-        }),
-      })),
+    if (conversations.length === 0) return [];
+
+    const counts = await this.prisma.message.groupBy({
+      by: ['conversationId'],
+      where: {
+        conversationId: { in: conversations.map((conversation) => conversation.id) },
+        senderId: { not: userId },
+        seen: false,
+      },
+      _count: { _all: true },
+    });
+    const unreadByConversation = new Map(
+      counts.map((item) => [item.conversationId, item._count._all]),
     );
+
+    return conversations.map((conversation) => ({
+      ...conversation,
+      unreadCount: unreadByConversation.get(conversation.id) ?? 0,
+    }));
   }
 }

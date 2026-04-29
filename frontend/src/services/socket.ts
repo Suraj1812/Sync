@@ -6,9 +6,12 @@ let socket: Socket | null = null;
 
 export function getSocket(token: string) {
   if (socket?.connected) return socket;
-  socket = io(API_URL, {
+  socket = io(API_URL || window.location.origin, {
     auth: { token },
-    transports: ['websocket'],
+    reconnectionAttempts: 8,
+    reconnectionDelayMax: 3000,
+    timeout: 10000,
+    transports: ['websocket', 'polling'],
   });
   return socket;
 }

@@ -3,7 +3,7 @@ import { Socket } from 'socket.io-client';
 import { getSocket } from '../services/socket';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
-import type { IncomingCall, Message, User } from '../types';
+import type { IncomingCall, Message } from '../types';
 
 type UseRealtimeOptions = {
   onIncomingCall: (call: IncomingCall) => void;
@@ -15,22 +15,34 @@ type UseRealtimeOptions = {
 
 export function useRealtime(options: UseRealtimeOptions) {
   const token = useAuthStore((state) => state.token);
-  const { addMessage, markSeen, setTyping, upsertUserPresence } = useChatStore();
+  const { addMessage, markDelivered, markSeen, setTyping, upsertUserPresence } = useChatStore();
 
   useEffect(() => {
     if (!token) return;
     const socket = getSocket(token);
 
-    socket.on('message:new', (message: Message) => addMessage(message));
-    socket.on('message:seen', (payload: { conversationId: string; seenBy: string }) =>
-      markSeen(payload.conversationId, payload.seenBy),
-    );
-    socket.on('typing:start', (payload: { conversationId: string; userId: string }) =>
-      setTyping(payload.conversationId, payload.userId),
-    );
-    socket.on('typing:stop', (payload: { conversationId: string }) => setTyping(payload.conversationId, null));
-    socket.on('user:online', (user: User) => upsertUserPresence(user));
-    socket.on('user:offline', (user: User) => upsertUserPresence(user));
+    const onNewMessage = (message: Message) => {
+      const knownConversation = useChatStore
+        .getState()
+        .conversations.some((conversation) => conversation.id === message.conversationId);
+      addMessage(message);
+      if (!knownConversation) void useChatStore.getState().loadConversations();
+    };
+    const onDelivered = (payload: { conversationId: string; deliveredTo: string }) =>
+      markDelivered(payload.conversationId, payload.deliveredTo);
+    const onSeen = (payload: { conversationId: string; seenBy: string }) =>
+      markSeen(payload.conversationId, payload.seenBy);
+    const onTypingStart = (payload: { conversationId: string; userId: string }) =>
+      setTyping(payload.conversationId, payload.userId);
+    const onTypingStop = (payload: { conversationId: string }) => setTyping(payload.conversationId, null);
+
+    socket.on('message:new', onNewMessage);
+    socket.on('message:delivered', onDelivered);
+    socket.on('message:seen', onSeen);
+    socket.on('typing:start', onTypingStart);
+    socket.on('typing:stop', onTypingStop);
+    socket.on('user:online', upsertUserPresence);
+    socket.on('user:offline', upsertUserPresence);
     socket.on('call:incoming', options.onIncomingCall);
     socket.on('call:accept', options.onCallAccepted);
     socket.on('call:reject', options.onCallRejected);
@@ -38,19 +50,20 @@ export function useRealtime(options: UseRealtimeOptions) {
     socket.on('call:unavailable', options.onUnavailable);
 
     return () => {
-      socket.off('message:new');
-      socket.off('message:seen');
-      socket.off('typing:start');
-      socket.off('typing:stop');
-      socket.off('user:online');
-      socket.off('user:offline');
-      socket.off('call:incoming');
-      socket.off('call:accept');
-      socket.off('call:reject');
-      socket.off('call:end');
-      socket.off('call:unavailable');
+      socket.off('message:new', onNewMessage);
+      socket.off('message:delivered', onDelivered);
+      socket.off('message:seen', onSeen);
+      socket.off('typing:start', onTypingStart);
+      socket.off('typing:stop', onTypingStop);
+      socket.off('user:online', upsertUserPresence);
+      socket.off('user:offline', upsertUserPresence);
+      socket.off('call:incoming', options.onIncomingCall);
+      socket.off('call:accept', options.onCallAccepted);
+      socket.off('call:reject', options.onCallRejected);
+      socket.off('call:end', options.onCallEnded);
+      socket.off('call:unavailable', options.onUnavailable);
     };
-  }, [addMessage, markSeen, options, setTyping, token, upsertUserPresence]);
+  }, [addMessage, markDelivered, markSeen, options, setTyping, token, upsertUserPresence]);
 }
 
 export function emit(socket: Socket | null, event: string, payload: unknown) {

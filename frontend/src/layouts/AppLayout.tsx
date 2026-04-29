@@ -53,6 +53,9 @@ export function AppLayout() {
     messages,
     activeConversationId,
     typingByConversation,
+    conversationsLoading,
+    messagesLoading,
+    loadError,
     setActiveConversation,
     loadConversations,
     loadMessages,
@@ -63,6 +66,7 @@ export function AppLayout() {
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
   const [callNotice, setCallNotice] = useState('');
+  const seenReceiptRef = useRef('');
   const socket = useMemo(() => (token ? getSocket(token) : null), [token]);
   const realtimeOptions = useMemo(
     () => ({
@@ -88,13 +92,15 @@ export function AppLayout() {
     if (!activeConversationId || !socket) return;
     socket.emit('conversation:join', activeConversationId);
     void loadMessages(activeConversationId);
-    socket.emit('message:seen', { conversationId: activeConversationId });
   }, [activeConversationId, loadMessages, socket]);
 
   const activeMessageCount = activeConversationId ? (messages[activeConversationId]?.length ?? 0) : 0;
 
   useEffect(() => {
     if (!activeConversationId || !socket || activeMessageCount === 0) return;
+    const receiptKey = `${activeConversationId}:${activeMessageCount}`;
+    if (seenReceiptRef.current === receiptKey) return;
+    seenReceiptRef.current = receiptKey;
     socket.emit('message:seen', { conversationId: activeConversationId });
   }, [activeConversationId, activeMessageCount, socket]);
 
@@ -117,27 +123,54 @@ export function AppLayout() {
 
   function startCall(callType: 'audio' | 'video') {
     if (!activePeer || !socket) return;
-    socket.emit('call:initiate', { receiverId: activePeer.id, conversationId: activeConversationId, callType });
-    socket.once('call:ringing', (payload: { callId: string; callType?: 'audio' | 'video' }) => {
+    if (!activePeer.isOnline) {
+      setCallNotice(`${activePeer.name} is offline`);
+      return;
+    }
+
+    setCallNotice('');
+    const peer = activePeer;
+    const activeSocket = socket;
+    const timeout = window.setTimeout(() => {
+      activeSocket.off('call:ringing', onRinging);
+      activeSocket.off('call:unavailable', onUnavailable);
+      setCallNotice('Call could not connect');
+    }, 8000);
+
+    function clearPendingCall() {
+      window.clearTimeout(timeout);
+      activeSocket.off('call:ringing', onRinging);
+      activeSocket.off('call:unavailable', onUnavailable);
+    }
+
+    function onRinging(payload: { callId: string; receiverId?: string; callType?: 'audio' | 'video' }) {
+      if (payload.receiverId && payload.receiverId !== peer.id) return;
+      clearPendingCall();
       setActiveCall({
         callId: payload.callId,
-        peerId: activePeer.id,
-        peerName: activePeer.name,
-        peerAvatar: activePeer.avatar,
+        peerId: peer.id,
+        peerName: peer.name,
+        peerAvatar: peer.avatar,
         callType: payload.callType ?? callType,
         isCaller: true,
         status: 'ringing',
       });
-    });
+    }
+
+    function onUnavailable(payload: { receiverId: string }) {
+      if (payload.receiverId !== peer.id) return;
+      clearPendingCall();
+      setCallNotice(`${peer.name} is unavailable`);
+    }
+
+    activeSocket.once('call:ringing', onRinging);
+    activeSocket.once('call:unavailable', onUnavailable);
+    activeSocket.emit('call:initiate', { receiverId: activePeer.id, conversationId: activeConversationId, callType });
   }
 
   function acceptCall() {
     if (!incomingCall || !socket) return;
     const caller = findParticipantById(conversations, incomingCall.callerId);
-    socket.emit('call:accept', {
-      callId: incomingCall.callId,
-      receiverId: incomingCall.callerId,
-    });
     setActiveCall({
       callId: incomingCall.callId,
       peerId: incomingCall.callerId,
@@ -148,6 +181,12 @@ export function AppLayout() {
       status: 'connecting',
     });
     setIncomingCall(null);
+    window.setTimeout(() => {
+      socket.emit('call:accept', {
+        callId: incomingCall.callId,
+        receiverId: incomingCall.callerId,
+      });
+    }, 0);
   }
 
   function rejectCall() {
@@ -179,6 +218,8 @@ export function AppLayout() {
             conversations={conversations}
             currentUser={user}
             activeId={activeConversationId}
+            loading={conversationsLoading}
+            error={loadError}
             onSelect={(id) => {
               setActiveConversation(id);
               setMobileListOpen(false);
@@ -203,6 +244,8 @@ export function AppLayout() {
             conversation={activeConversation}
             peer={activePeer ?? null}
             messages={activeConversationId ? messages[activeConversationId] ?? [] : []}
+            loading={activeConversationId ? Boolean(messagesLoading[activeConversationId]) : false}
+            error={loadError}
             typingUserId={activeConversationId ? typingByConversation[activeConversationId] : null}
             socket={socket}
             onMenu={() => setMobileListOpen(true)}
@@ -240,6 +283,8 @@ function ConversationList({
   conversations,
   currentUser,
   activeId,
+  loading,
+  error,
   onSelect,
   onSearch,
   onProfile,
@@ -249,6 +294,8 @@ function ConversationList({
   conversations: Conversation[];
   currentUser: User;
   activeId: string | null;
+  loading: boolean;
+  error: string;
   onSelect: (id: string) => void;
   onSearch: () => void;
   onProfile: () => void;
@@ -318,7 +365,24 @@ function ConversationList({
         </Button>
       </header>
       <div className="thin-scrollbar flex-1 overflow-y-auto">
-        {conversations.length === 0 ? (
+        {loading && conversations.length === 0 ? (
+          <div className="space-y-3 px-5 py-5">
+            {Array.from({ length: 5 }, (_, index) => (
+              <div key={index} className="flex animate-pulse items-center gap-3 rounded-2xl px-1 py-2">
+                <div className="h-11 w-11 rounded-full bg-slate-200" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-3 w-1/2 rounded bg-slate-200" />
+                  <div className="h-3 w-4/5 rounded bg-slate-100" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : error && conversations.length === 0 ? (
+          <div className="px-8 py-16 text-center">
+            <p className="text-sm font-medium text-ink">Could not load messages</p>
+            <p className="mt-2 text-sm text-muted">{error}</p>
+          </div>
+        ) : conversations.length === 0 ? (
           <div className="px-8 py-16 text-center">
             <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-line bg-white text-brand shadow-sm">
               <UserPlus size={22} />
@@ -377,6 +441,8 @@ function ConversationView({
   conversation,
   peer,
   messages,
+  loading,
+  error,
   typingUserId,
   socket,
   onMenu,
@@ -386,6 +452,8 @@ function ConversationView({
   conversation: Conversation | null;
   peer: User | null;
   messages: Message[];
+  loading: boolean;
+  error: string;
   typingUserId?: string | null;
   socket: ReturnType<typeof getSocket> | null;
   onMenu: () => void;
@@ -394,24 +462,56 @@ function ConversationView({
   const [content, setContent] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const typingRef = useRef(false);
+  const typingTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
 
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+      if (typingRef.current && conversation) {
+        socket?.emit('typing:stop', { conversationId: conversation.id });
+      }
+      typingRef.current = false;
+    };
+  }, [conversation?.id, socket]);
+
   function send(event: FormEvent) {
     event.preventDefault();
     if (!conversation || !content.trim()) return;
     socket?.emit('message:send', { conversationId: conversation.id, content });
-    socket?.emit('typing:stop', { conversationId: conversation.id });
+    if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+    if (typingRef.current) {
+      socket?.emit('typing:stop', { conversationId: conversation.id });
+      typingRef.current = false;
+    }
     setContent('');
     setEmojiOpen(false);
   }
 
   function onTyping(value: string) {
     setContent(value);
-    if (!conversation) return;
-    socket?.emit(value ? 'typing:start' : 'typing:stop', { conversationId: conversation.id });
+    if (!conversation || !socket) return;
+
+    if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+    if (!value.trim()) {
+      if (typingRef.current) socket.emit('typing:stop', { conversationId: conversation.id });
+      typingRef.current = false;
+      return;
+    }
+
+    if (!typingRef.current) {
+      socket.emit('typing:start', { conversationId: conversation.id });
+      typingRef.current = true;
+    }
+
+    typingTimerRef.current = window.setTimeout(() => {
+      socket.emit('typing:stop', { conversationId: conversation.id });
+      typingRef.current = false;
+    }, 900);
   }
 
   if (!conversation || !peer) {
@@ -475,6 +575,11 @@ function ConversationView({
 
       <div className="thin-scrollbar flex-1 overflow-y-auto bg-[#f6f8fb]">
         <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col justify-end space-y-3 px-3 py-4 sm:px-5 sm:py-6 md:px-8 md:py-7">
+          {loading && messages.length === 0 ? (
+            <MessageSkeleton />
+          ) : error && messages.length === 0 ? (
+            <div className="mb-8 text-center text-sm text-muted">{error}</div>
+          ) : null}
           {messages.map((message, index) => {
             const previous = messages[index - 1];
             const showDay = !previous || !isSameCalendarDay(previous.createdAt, message.createdAt);
@@ -531,6 +636,17 @@ function ConversationView({
   );
 }
 
+function MessageSkeleton() {
+  return (
+    <div className="space-y-3">
+      <div className="h-9 w-44 animate-pulse rounded-2xl bg-white" />
+      <div className="ml-auto h-16 w-56 animate-pulse rounded-2xl bg-blue-100" />
+      <div className="h-14 w-64 animate-pulse rounded-2xl bg-white" />
+      <div className="ml-auto h-12 w-48 animate-pulse rounded-2xl bg-blue-100" />
+    </div>
+  );
+}
+
 function DateSeparator({ label }: { label: string }) {
   return (
     <div className="flex justify-center py-2">
@@ -552,20 +668,47 @@ function SearchUsersModal({
 }) {
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!open || query.trim().length < 2) {
       setUsers([]);
+      setLoading(false);
+      setError('');
       return;
     }
-    const timeout = window.setTimeout(async () => setUsers(await userApi.search(query)), 220);
-    return () => window.clearTimeout(timeout);
+    let active = true;
+    const timeout = window.setTimeout(async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const result = await userApi.search(query);
+        if (active) setUsers(result);
+      } catch {
+        if (active) {
+          setUsers([]);
+          setError('Search is unavailable. Try again.');
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
   }, [open, query]);
 
   return (
     <Modal open={open} title="Find People" onClose={onClose}>
       <Input autoFocus placeholder="Search by name or email" value={query} onChange={(event) => setQuery(event.target.value)} />
       <div className="mt-4 space-y-2">
+        {loading && <p className="px-3 py-2 text-sm text-muted">Searching...</p>}
+        {error && <p className="px-3 py-2 text-sm text-red-600">{error}</p>}
+        {!loading && !error && query.trim().length >= 2 && users.length === 0 && (
+          <p className="px-3 py-2 text-sm text-muted">No people found.</p>
+        )}
         {users.map((item) => (
           <button
             key={item.id}
@@ -747,12 +890,22 @@ function ActiveCallScreen({
       <header className="safe-top flex min-h-16 items-center justify-between gap-4 px-4 py-3 sm:px-5">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{call.peerName}</p>
-          <p className="text-xs text-white/60">
-            {status === 'connected' ? `${minutes}:${remaining}` : status === 'ringing' ? 'Ringing...' : 'Connecting...'}
+          <p className="truncate text-xs text-white/60">
+            {rtc.mediaError
+              ? rtc.mediaError
+              : status === 'connected'
+                ? `${minutes}:${remaining}`
+                : status === 'ringing'
+                  ? 'Ringing...'
+                  : 'Connecting...'}
           </p>
         </div>
         <p className="shrink-0 text-xs text-white/60">
-          {status === 'connected' ? 'Connected' : call.callType === 'audio' ? 'Voice call' : 'Video call'}
+          {status === 'connected' || rtc.connectionState === 'connected'
+            ? 'Connected'
+            : call.callType === 'audio'
+              ? 'Voice call'
+              : 'Video call'}
         </p>
       </header>
       <div className="relative min-h-0 flex-1">

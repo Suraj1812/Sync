@@ -1,12 +1,14 @@
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
+
+const cuidPattern = /^c[a-z0-9]{8,}$/i;
 
 export class StartConversationDto {
-  @IsString()
+  @Matches(cuidPattern)
   userId: string;
 }
 
 export class SendMessageDto {
-  @IsString()
+  @Matches(cuidPattern)
   conversationId: string;
 
   @IsString()
@@ -16,6 +18,6 @@ export class SendMessageDto {
 }
 
 export class SeenMessageDto {
-  @IsString()
+  @Matches(cuidPattern)
   conversationId: string;
 }

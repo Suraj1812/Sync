@@ -8,7 +8,7 @@ COPY frontend/package.json frontend/package.json
 COPY backend/package.json backend/package.json
 RUN pnpm install --frozen-lockfile
 COPY frontend frontend
-ARG VITE_API_URL=http://localhost:4000
+ARG VITE_API_URL=
 ENV VITE_API_URL=$VITE_API_URL
 RUN pnpm --filter frontend build
 

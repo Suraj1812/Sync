@@ -30,5 +30,6 @@ RUN pnpm --filter backend prisma:generate
 COPY backend/docker-entrypoint.sh backend/docker-entrypoint.sh
 RUN chmod +x backend/docker-entrypoint.sh
 EXPOSE 4000
+USER node
 ENTRYPOINT ["backend/docker-entrypoint.sh"]
 CMD ["pnpm", "--filter", "backend", "start:prod"]

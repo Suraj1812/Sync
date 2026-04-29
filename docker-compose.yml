@@ -21,11 +21,15 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/sync?schema=public
+      NODE_ENV: production
       JWT_SECRET: change-me-before-production
       JWT_EXPIRES_IN: 7d
       PORT: 4000
@@ -50,6 +54,9 @@ services:
       args:
         VITE_API_URL: ""
     restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       api:
         condition: service_healthy

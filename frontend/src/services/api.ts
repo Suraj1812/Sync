@@ -1,10 +1,12 @@
-import axios from 'axios';
+import axios, { AxiosHeaders } from 'axios';
 import type { Conversation, Message, User } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
+const retryableMethods = new Set(['get', 'head', 'options']);
 
 export const api = axios.create({
   baseURL: `${API_URL}/api`,
+  timeout: 15_000,
 });
 
 api.interceptors.request.use((config) => {
@@ -12,6 +14,32 @@ api.interceptors.request.use((config) => {
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (!axios.isAxiosError(error)) return Promise.reject(error);
+
+    const config = error.config;
+    const status = error.response?.status;
+    const method = config?.method?.toLowerCase();
+    const retryCount = Number(config?.headers?.get?.('x-sync-retry') ?? 0);
+
+    if (status === 401) {
+      localStorage.removeItem('sync_token');
+      window.dispatchEvent(new window.Event('sync:unauthorized'));
+    }
+
+    if (!status && config && method && retryableMethods.has(method) && retryCount < 1) {
+      config.headers = AxiosHeaders.from(config.headers);
+      config.headers.set('x-sync-retry', String(retryCount + 1));
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+      return api(config);
+    }
+
+    return Promise.reject(error);
+  },
+);
 
 export type AuthResponse = {
   user: User;

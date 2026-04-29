@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { normalizeAvatar, normalizeOptionalText, normalizeText } from '../common/utils/normalizers';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateProfileDto } from './dto';
 
@@ -33,13 +34,14 @@ export class UsersService {
   }
 
   updateProfile(userId: string, dto: UpdateProfileDto) {
+    const data: { name?: string; status?: string | null; avatar?: string | null } = {};
+    if (dto.name !== undefined) data.name = normalizeText(dto.name, 'Name');
+    if (dto.status !== undefined) data.status = normalizeOptionalText(dto.status, 160);
+    if (dto.avatar !== undefined) data.avatar = normalizeAvatar(dto.avatar);
+
     return this.prisma.user.update({
       where: { id: userId },
-      data: {
-        ...(dto.name ? { name: dto.name.trim() } : {}),
-        status: dto.status?.trim() || null,
-        avatar: dto.avatar?.trim() || null,
-      },
+      data,
       select: this.publicUserSelect(),
     });
   }

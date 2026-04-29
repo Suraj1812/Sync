@@ -80,13 +80,14 @@ The gateway authenticates sockets with JWT and supports:
 - `conversation:join`
 - `message:send`
 - `message:new`
+- `message:delivered`
 - `message:seen`
 - `typing:start`
 - `typing:stop`
 
 ## 7. Call Signaling
 
-Call signaling supports:
+Call signaling supports one-to-one voice and video calls:
 
 - `call:initiate`
 - `call:incoming`
@@ -133,7 +134,7 @@ Axios services are in `frontend/src/services/api.ts`. The token is stored in loc
 
 ## 12. WebRTC Integration
 
-WebRTC logic lives in `frontend/src/hooks/useWebRTC.ts`. It handles local media, remote tracks, STUN configuration, SDP offer/answer exchange, ICE candidates, mute, camera toggle, screen share, and cleanup.
+WebRTC logic lives in `frontend/src/hooks/useWebRTC.ts`. It handles local media, remote tracks, STUN configuration, SDP offer/answer exchange, ICE candidates, mute, camera toggle, screen share, connection status, permission feedback, and cleanup.
 
 ## 13. Final Polish
 
@@ -240,6 +241,15 @@ pnpm dev
 ./scripts/local-check.sh
 ```
 
+The local check now runs:
+
+- Prisma Client generation and schema validation
+- backend unit tests
+- static production regression audit
+- frontend and backend lint
+- frontend and backend production builds
+- gzip bundle performance budgets
+
 ## Production With Docker
 
 Build and run the production-style stack:
@@ -252,7 +262,8 @@ Services:
 
 ```text
 web: http://localhost:8080
-api: http://localhost:4000
+api via web proxy: http://localhost:8080/api/health
+api direct: http://localhost:4000/api/health
 postgres: localhost:5432
 ```
 
@@ -265,6 +276,20 @@ JWT_SECRET="change-me-before-production"
 FRONTEND_URL="https://your-domain.com"
 VITE_API_URL=""
 ```
+
+## Production Hardening
+
+Implemented safeguards include:
+
+- strict DTO validation and normalized inputs
+- safe avatar source validation for uploads and profile updates
+- request security headers
+- API request timeouts
+- auth/API rate limiting
+- same-origin `/api` and `/socket.io` proxy in Docker production mode
+- static asset caching and gzip in Nginx
+- non-root API container runtime
+- database indexes for inbox, unread, delivery, presence, and call-log queries
 
 ## Deploy To Railway
 
@@ -331,23 +356,30 @@ GitHub Actions runs on pushes and pull requests to `main`:
 
 - Register, login, session restore, logout
 - Protected API routes
-- Profile editing with name, status, and avatar URL
+- Profile editing with name, status, and uploaded avatar image
 - User search
 - One-to-one conversations
 - Real-time messaging
+- Cached/in-flight conversation and message loading
 - Typing indicators
-- Seen/read state
+- Sent, delivered, and read states
+- Unread message counts
 - Timestamps
 - Emoji picker
 - Online/offline presence and last seen
 - Incoming call modal
 - Accept, reject, unavailable, ringing, and end call states
+- WebRTC voice calling
 - WebRTC video calling
 - Microphone toggle
 - Camera toggle
 - Screen sharing
 - Call timer
 - Responsive desktop, tablet, and mobile layout
+
+## Scale Notes
+
+For multi-instance production, add Redis-backed Socket.IO adapter and Redis-backed rate limiting so presence, rooms, and limits work across replicas. For global media reliability, add a TURN service such as coturn. Put the web app behind a CDN and keep PostgreSQL on managed storage with automated backups.
 
 ## Notes
 

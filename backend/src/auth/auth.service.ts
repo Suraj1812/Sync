@@ -2,6 +2,7 @@ import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/co
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import { normalizeAvatar, normalizeEmail, normalizeText } from '../common/utils/normalizers';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto, RegisterDto } from './dto';
 
@@ -14,16 +15,17 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const exists = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
+    const email = normalizeEmail(dto.email);
+    const exists = await this.prisma.user.findUnique({ where: { email } });
     if (exists) throw new ConflictException('Email is already registered');
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const user = await this.prisma.user.create({
       data: {
-        name: dto.name.trim(),
-        email: dto.email.toLowerCase(),
+        name: normalizeText(dto.name, 'Name'),
+        email,
         passwordHash,
-        avatar: dto.avatar?.trim() || undefined,
+        avatar: normalizeAvatar(dto.avatar) ?? undefined,
       },
       select: this.publicUserSelect(),
     });
@@ -32,7 +34,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
+    const user = await this.prisma.user.findUnique({ where: { email: normalizeEmail(dto.email) } });
     if (!user) throw new UnauthorizedException('Invalid email or password');
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);

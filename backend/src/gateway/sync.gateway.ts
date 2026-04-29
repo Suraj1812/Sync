@@ -13,6 +13,7 @@ import { Server, Socket } from 'socket.io';
 import { CallsService } from '../calls/calls.service';
 import { ChatService } from '../chat/chat.service';
 import { SendMessageDto, SeenMessageDto } from '../chat/dto';
+import { corsOrigin } from '../common/utils/origins';
 import { UsersService } from '../users/users.service';
 
 type AuthedSocket = Socket & {
@@ -29,18 +30,9 @@ type CallPayload = {
   candidate?: unknown;
 };
 
-function corsOrigin(frontendUrl?: string) {
-  const origins = (frontendUrl ?? '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-
-  return origins.length > 0 ? origins : true;
-}
-
 @WebSocketGateway({
   cors: {
-    origin: corsOrigin(process.env.FRONTEND_URL),
+    origin: corsOrigin(process.env.FRONTEND_URL, process.env.NODE_ENV),
     credentials: true,
   },
 })
@@ -70,6 +62,7 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       const user = await this.users.setOnline(payload.sub);
       this.server.emit('user:online', user);
+      await this.emitDeliveredForUser(payload.sub);
     } catch {
       client.emit('error', { message: 'Unauthorized socket connection' });
       client.disconnect(true);
@@ -104,7 +97,6 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const message = await this.chat.sendMessage(client.user.id, dto.conversationId, dto.content);
     const outgoing = receiverOnline ? await this.chat.markDelivered(message.id) : message;
     participantIds.forEach((id) => this.server.to(this.userRoom(id)).emit('message:new', outgoing));
-    this.server.to(this.conversationRoom(dto.conversationId)).emit('message:new', outgoing);
     return outgoing;
   }
 
@@ -118,7 +110,6 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
       seenBy: client.user.id,
     };
     participantIds.forEach((id) => this.server.to(this.userRoom(id)).emit('message:seen', payload));
-    this.server.to(this.conversationRoom(dto.conversationId)).emit('message:seen', payload);
   }
 
   @SubscribeMessage('typing:start')
@@ -172,8 +163,8 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('call:accept')
   async acceptCall(@ConnectedSocket() client: AuthedSocket, @MessageBody() payload: CallPayload) {
     if (!client.user || !payload.callId) return;
-    await this.calls.update(payload.callId, CallStatus.ACCEPTED);
-    this.server.to(this.userRoom(payload.receiverId)).emit('call:accept', {
+    const call = await this.calls.accept(payload.callId, client.user.id);
+    this.server.to(this.userRoom(call.callerId)).emit('call:accept', {
       callId: payload.callId,
       acceptedBy: client.user.id,
     });
@@ -182,8 +173,8 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('call:reject')
   async rejectCall(@ConnectedSocket() client: AuthedSocket, @MessageBody() payload: CallPayload) {
     if (!client.user || !payload.callId) return;
-    await this.calls.end(payload.callId, CallStatus.REJECTED);
-    this.server.to(this.userRoom(payload.receiverId)).emit('call:reject', {
+    const call = await this.calls.reject(payload.callId, client.user.id);
+    this.server.to(this.userRoom(call.callerId)).emit('call:reject', {
       callId: payload.callId,
       rejectedBy: client.user.id,
     });
@@ -192,8 +183,8 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('call:end')
   async endCall(@ConnectedSocket() client: AuthedSocket, @MessageBody() payload: CallPayload) {
     if (!client.user || !payload.callId) return;
-    await this.calls.end(payload.callId, CallStatus.ENDED);
-    this.server.to(this.userRoom(payload.receiverId)).emit('call:end', {
+    const call = await this.calls.end(payload.callId, client.user.id, CallStatus.ENDED);
+    this.server.to(this.userRoom(this.calls.peerId(call, client.user.id))).emit('call:end', {
       callId: payload.callId,
       endedBy: client.user.id,
     });
@@ -241,5 +232,16 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private conversationRoom(conversationId: string) {
     return `conversation:${conversationId}`;
+  }
+
+  private async emitDeliveredForUser(userId: string) {
+    const conversationIds = await this.chat.markDeliveredForUser(userId);
+    await Promise.all(
+      conversationIds.map(async (conversationId) => {
+        const participantIds = await this.chat.getParticipantIds(conversationId);
+        const payload = { conversationId, deliveredTo: userId };
+        participantIds.forEach((id) => this.server.to(this.userRoom(id)).emit('message:delivered', payload));
+      }),
+    );
   }
 }

@@ -39,8 +39,14 @@ jobs:
       - name: Validate Prisma Schema
         run: pnpm --filter backend exec prisma validate
 
+      - name: Test
+        run: pnpm test
+
       - name: Lint
         run: pnpm lint
 
       - name: Build
         run: pnpm build
+
+      - name: Performance Budget
+        run: pnpm perf:budget

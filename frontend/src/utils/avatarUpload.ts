@@ -1,10 +1,11 @@
 export const MAX_AVATAR_BYTES = 3 * 1024 * 1024;
 export const MAX_AVATAR_LABEL = '3 MB';
+const allowedTypes = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 
 export function readAvatarFile(file: globalThis.File) {
   return new Promise<string>((resolve, reject) => {
-    if (!file.type.startsWith('image/')) {
-      reject(new Error('Choose an image file.'));
+    if (!allowedTypes.has(file.type)) {
+      reject(new Error('Choose a PNG, JPG, WebP, or GIF image.'));
       return;
     }
 
