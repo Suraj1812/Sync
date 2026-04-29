@@ -66,6 +66,16 @@ export const chatApi = {
     api.post<Conversation>('/chat/conversations', { userId }).then((res) => res.data),
   messages: (conversationId: string) =>
     api.get<Message[]>(`/chat/conversations/${conversationId}/messages`).then((res) => res.data),
+  sendMessage: (conversationId: string, content: string) =>
+    api.post<Message>(`/chat/conversations/${conversationId}/messages`, { content }).then((res) => res.data),
+  editMessage: (messageId: string, content: string) =>
+    api.patch<Message>(`/chat/messages/${messageId}`, { content }).then((res) => res.data),
+  deleteMessage: (messageId: string) =>
+    api.delete<{ messageId: string; conversationId: string; deletedBy: string }>(`/chat/messages/${messageId}`).then((res) => res.data),
+  clearConversation: (conversationId: string) =>
+    api.post<{ conversationId: string; userId: string; clearedAt: string }>(`/chat/conversations/${conversationId}/clear`).then((res) => res.data),
+  deleteConversation: (conversationId: string) =>
+    api.delete<{ conversationId: string; userId: string; deletedAt: string }>(`/chat/conversations/${conversationId}`).then((res) => res.data),
 };
 
 export function getApiErrorMessage(error: unknown, fallback: string) {

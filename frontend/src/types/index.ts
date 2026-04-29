@@ -15,6 +15,8 @@ export type Message = {
   content: string;
   delivered: boolean;
   seen: boolean;
+  editedAt?: string | null;
+  deletedAt?: string | null;
   createdAt: string;
   sender: User;
 };
@@ -23,7 +25,7 @@ export type Conversation = {
   id: string;
   createdAt: string;
   updatedAt: string;
-  participants: { id: string; userId: string; user: User }[];
+  participants: { id: string; userId: string; user: User; clearedAt?: string | null; deletedAt?: string | null }[];
   messages: Message[];
   unreadCount: number;
 };

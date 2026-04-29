@@ -12,7 +12,7 @@ import { CallStatus } from '@prisma/client';
 import { Server, Socket } from 'socket.io';
 import { CallsService } from '../calls/calls.service';
 import { ChatService } from '../chat/chat.service';
-import { SendMessageDto, SeenMessageDto } from '../chat/dto';
+import { ConversationActionDto, EditMessageDto, MessageActionDto, SendMessageDto, SeenMessageDto } from '../chat/dto';
 import { corsOrigin } from '../common/utils/origins';
 import { UsersService } from '../users/users.service';
 
@@ -110,6 +110,40 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
       seenBy: client.user.id,
     };
     participantIds.forEach((id) => this.server.to(this.userRoom(id)).emit('message:seen', payload));
+  }
+
+  @SubscribeMessage('message:edit')
+  async editMessage(@ConnectedSocket() client: AuthedSocket, @MessageBody() dto: EditMessageDto) {
+    if (!client.user || !dto?.messageId) return;
+    const message = await this.chat.editMessage(client.user.id, dto.messageId, dto.content);
+    const participantIds = await this.chat.getParticipantIds(message.conversationId);
+    participantIds.forEach((id) => this.server.to(this.userRoom(id)).emit('message:updated', message));
+    return message;
+  }
+
+  @SubscribeMessage('message:delete')
+  async deleteMessage(@ConnectedSocket() client: AuthedSocket, @MessageBody() dto: MessageActionDto) {
+    if (!client.user || !dto?.messageId) return;
+    const result = await this.chat.deleteMessage(client.user.id, dto.messageId);
+    const participantIds = await this.chat.getParticipantIds(result.conversationId);
+    participantIds.forEach((id) => this.server.to(this.userRoom(id)).emit('message:deleted', result));
+    return result;
+  }
+
+  @SubscribeMessage('conversation:clear')
+  async clearConversation(@ConnectedSocket() client: AuthedSocket, @MessageBody() dto: ConversationActionDto) {
+    if (!client.user || !dto?.conversationId) return;
+    const result = await this.chat.clearConversation(client.user.id, dto.conversationId);
+    this.server.to(this.userRoom(client.user.id)).emit('conversation:cleared', result);
+    return result;
+  }
+
+  @SubscribeMessage('conversation:delete')
+  async deleteConversation(@ConnectedSocket() client: AuthedSocket, @MessageBody() dto: ConversationActionDto) {
+    if (!client.user || !dto?.conversationId) return;
+    const result = await this.chat.deleteConversation(client.user.id, dto.conversationId);
+    this.server.to(this.userRoom(client.user.id)).emit('conversation:deleted', result);
+    return result;
   }
 
   @SubscribeMessage('typing:start')

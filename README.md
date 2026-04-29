@@ -69,7 +69,7 @@ Auth includes register, login, bcrypt-compatible password hashing, JWT issuing, 
 
 ## 5. Chat Module
 
-Chat includes conversation listing, one-to-one conversation creation, message fetching, participant checks, message persistence, and seen state updates.
+Chat includes conversation listing, one-to-one conversation creation, message fetching, message sending, editing, deletion, per-user chat clearing, contact removal, participant checks, message persistence, and seen state updates.
 
 ## 6. Socket Gateway
 
@@ -82,6 +82,14 @@ The gateway authenticates sockets with JWT and supports:
 - `message:new`
 - `message:delivered`
 - `message:seen`
+- `message:edit`
+- `message:updated`
+- `message:delete`
+- `message:deleted`
+- `conversation:clear`
+- `conversation:cleared`
+- `conversation:delete`
+- `conversation:deleted`
 - `typing:start`
 - `typing:stop`
 
@@ -360,6 +368,9 @@ GitHub Actions runs on pushes and pull requests to `main`:
 - User search
 - One-to-one conversations
 - Real-time messaging
+- Edit and delete your own messages
+- Clear visible chat history
+- Delete a contact from the conversation list
 - Cached/in-flight conversation and message loading
 - Typing indicators
 - Sent, delivered, and read states

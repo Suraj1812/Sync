@@ -1,15 +1,18 @@
 import { ChangeEvent, FormEvent, Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { EmojiClickData } from 'emoji-picker-react';
 import {
+  Eraser,
   LogOut,
   Menu,
   MessageCircle,
+  MoreVertical,
   PhoneCall,
   Search,
   Send,
   Settings,
   Smile,
   Upload,
+  UserMinus,
   UserPlus,
   Video,
   X,
@@ -461,6 +464,17 @@ function ConversationView({
 }) {
   const [content, setContent] = useState('');
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [threadMenuOpen, setThreadMenuOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'clear' | 'delete-contact' | null>(null);
+  const [actionError, setActionError] = useState('');
+  const [actionBusy, setActionBusy] = useState(false);
+  const addMessage = useChatStore((state) => state.addMessage);
+  const clearConversation = useChatStore((state) => state.clearConversation);
+  const removeMessage = useChatStore((state) => state.deleteMessage);
+  const removeConversation = useChatStore((state) => state.removeConversation);
+  const setActiveConversation = useChatStore((state) => state.setActiveConversation);
+  const updateMessage = useChatStore((state) => state.updateMessage);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const typingRef = useRef(false);
   const typingTimerRef = useRef<number | null>(null);
@@ -479,10 +493,55 @@ function ConversationView({
     };
   }, [conversation?.id, socket]);
 
-  function send(event: FormEvent) {
+  useEffect(() => {
+    setContent('');
+    setEditingMessage(null);
+    setEmojiOpen(false);
+    setThreadMenuOpen(false);
+    setConfirmAction(null);
+    setActionError('');
+  }, [conversation?.id]);
+
+  async function emitWithFallback<T>(event: string, payload: unknown, fallback: () => Promise<T>) {
+    if (socket?.connected) return socket.timeout(5000).emitWithAck(event, payload) as Promise<T>;
+    return fallback();
+  }
+
+  async function send(event: FormEvent) {
     event.preventDefault();
     if (!conversation || !content.trim()) return;
-    socket?.emit('message:send', { conversationId: conversation.id, content });
+    const nextContent = content.trim();
+    setActionError('');
+    if (editingMessage) {
+      setActionBusy(true);
+      try {
+        const updated = await emitWithFallback<Message>(
+          'message:edit',
+          { messageId: editingMessage.id, content: nextContent },
+          () => chatApi.editMessage(editingMessage.id, nextContent),
+        );
+        updateMessage(updated);
+        setEditingMessage(null);
+        setContent('');
+      } catch {
+        setActionError('Could not edit that message. Try again.');
+      } finally {
+        setActionBusy(false);
+      }
+      return;
+    }
+
+    if (socket?.connected) {
+      socket.emit('message:send', { conversationId: conversation.id, content: nextContent });
+    } else {
+      try {
+        const message = await chatApi.sendMessage(conversation.id, nextContent);
+        addMessage(message);
+      } catch {
+        setActionError('Could not send that message. Try again.');
+        return;
+      }
+    }
     if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
     if (typingRef.current) {
       socket?.emit('typing:stop', { conversationId: conversation.id });
@@ -492,8 +551,76 @@ function ConversationView({
     setEmojiOpen(false);
   }
 
+  function startEditing(message: Message) {
+    if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+    if (typingRef.current && conversation) {
+      socket?.emit('typing:stop', { conversationId: conversation.id });
+      typingRef.current = false;
+    }
+    setEditingMessage(message);
+    setContent(message.content);
+    setEmojiOpen(false);
+    setActionError('');
+  }
+
+  function cancelEditing() {
+    setEditingMessage(null);
+    setContent('');
+    setActionError('');
+  }
+
+  async function deleteOwnMessage(message: Message) {
+    if (!conversation || actionBusy) return;
+    setActionBusy(true);
+    setActionError('');
+    try {
+      const result = await emitWithFallback<{ conversationId: string; messageId: string }>(
+        'message:delete',
+        { messageId: message.id },
+        () => chatApi.deleteMessage(message.id),
+      );
+      removeMessage(result.conversationId, result.messageId);
+      if (editingMessage?.id === message.id) cancelEditing();
+    } catch {
+      setActionError('Could not delete that message. Try again.');
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function runConversationAction() {
+    if (!conversation || !confirmAction || actionBusy) return;
+    setActionBusy(true);
+    setActionError('');
+    try {
+      if (confirmAction === 'clear') {
+        await emitWithFallback(
+          'conversation:clear',
+          { conversationId: conversation.id },
+          () => chatApi.clearConversation(conversation.id),
+        );
+        clearConversation(conversation.id);
+      } else {
+        await emitWithFallback(
+          'conversation:delete',
+          { conversationId: conversation.id },
+          () => chatApi.deleteConversation(conversation.id),
+        );
+        removeConversation(conversation.id);
+        setActiveConversation(null);
+      }
+      setConfirmAction(null);
+      setThreadMenuOpen(false);
+    } catch {
+      setActionError(confirmAction === 'clear' ? 'Could not clear this chat. Try again.' : 'Could not delete this contact. Try again.');
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   function onTyping(value: string) {
     setContent(value);
+    if (editingMessage) return;
     if (!conversation || !socket) return;
 
     if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
@@ -570,6 +697,44 @@ function ConversationView({
             onClick={() => onStartCall('video')}
             icon={<Video size={21} />}
           />
+          <div className="relative">
+            <Button
+              aria-label="Chat options"
+              title="Chat options"
+              variant="soft"
+              className={iconButtonClass}
+              onClick={() => setThreadMenuOpen((open) => !open)}
+              icon={<MoreVertical size={21} />}
+            />
+            {threadMenuOpen && (
+              <div className="absolute right-0 top-12 z-20 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 text-sm shadow-soft">
+                <button
+                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left font-medium text-slate-700 transition hover:bg-slate-50"
+                  onClick={() => {
+                    setActionError('');
+                    setConfirmAction('clear');
+                    setThreadMenuOpen(false);
+                  }}
+                  type="button"
+                >
+                  <Eraser size={16} />
+                  Clear chat
+                </button>
+                <button
+                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left font-medium text-red-600 transition hover:bg-red-50"
+                  onClick={() => {
+                    setActionError('');
+                    setConfirmAction('delete-contact');
+                    setThreadMenuOpen(false);
+                  }}
+                  type="button"
+                >
+                  <UserMinus size={16} />
+                  Delete contact
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -586,7 +751,12 @@ function ConversationView({
             return (
               <Fragment key={message.id}>
                 {showDay && <DateSeparator label={formatMessageDay(message.createdAt)} />}
-                <ChatBubble message={message} mine={message.senderId === user.id} />
+                <ChatBubble
+                  message={message}
+                  mine={message.senderId === user.id}
+                  onEdit={message.senderId === user.id ? startEditing : undefined}
+                  onDelete={message.senderId === user.id ? deleteOwnMessage : undefined}
+                />
               </Fragment>
             );
           })}
@@ -595,6 +765,23 @@ function ConversationView({
       </div>
 
       <form className="safe-bottom relative border-t border-slate-200 bg-white px-3 pt-3 sm:px-4 md:px-8" onSubmit={send}>
+        {editingMessage && (
+          <div className="mx-auto mb-2 flex max-w-4xl items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-2 text-sm text-slate-700">
+            <div className="min-w-0">
+              <p className="font-semibold text-brand">Editing message</p>
+              <p className="truncate text-xs text-slate-500">{editingMessage.content}</p>
+            </div>
+            <button
+              aria-label="Cancel edit"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-500 transition hover:bg-white hover:text-slate-950"
+              onClick={cancelEditing}
+              type="button"
+            >
+              <X size={17} />
+            </button>
+          </div>
+        )}
+        {actionError && <p className="mx-auto mb-2 max-w-4xl text-sm text-red-600">{actionError}</p>}
         {emojiOpen && (
           <div className="absolute bottom-20 left-3 z-10 w-[calc(100vw-1.5rem)] max-w-80 sm:left-4 md:left-8">
             <Suspense fallback={<div className="h-48 w-full rounded-xl border border-slate-200 bg-white shadow-soft" />}>
@@ -621,17 +808,60 @@ function ConversationView({
             className="max-h-32 min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base outline-none transition placeholder:text-slate-400 focus:border-brand focus:bg-white focus:ring-4 focus:ring-blue-100 sm:px-5 sm:text-sm"
             rows={1}
             value={content}
-            placeholder="Message"
+            placeholder={editingMessage ? 'Edit message' : 'Message'}
             onChange={(event) => onTyping(event.target.value)}
           />
           <Button
             className="h-11 w-11 shrink-0 rounded-2xl px-0 shadow-[0_10px_24px_rgba(37,99,235,0.25)] [&_svg]:h-5 [&_svg]:w-5 sm:[&_svg]:h-[21px] sm:[&_svg]:w-[21px]"
             aria-label="Send"
             title="Send"
+            disabled={actionBusy || !content.trim()}
             icon={<Send size={21} />}
           />
         </div>
       </form>
+      <Modal
+        open={Boolean(confirmAction)}
+        title={confirmAction === 'clear' ? 'Clear chat' : 'Delete contact'}
+        onClose={() => {
+          if (!actionBusy) {
+            setConfirmAction(null);
+            setActionError('');
+          }
+        }}
+      >
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-muted">
+            {confirmAction === 'clear'
+              ? 'This removes the visible chat history for you. New messages will still appear here.'
+              : `This removes ${peer.name} from your conversation list. New messages can restore the chat later.`}
+          </p>
+          {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="soft"
+              className="h-11 rounded-xl"
+              disabled={actionBusy}
+              onClick={() => {
+                setConfirmAction(null);
+                setActionError('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant={confirmAction === 'clear' ? 'primary' : 'danger'}
+              className="h-11 rounded-xl"
+              disabled={actionBusy}
+              onClick={runConversationAction}
+            >
+              {actionBusy ? 'Working...' : confirmAction === 'clear' ? 'Clear chat' : 'Delete contact'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

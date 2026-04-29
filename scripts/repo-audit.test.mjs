@@ -28,4 +28,21 @@ describe('static production audit', () => {
     assert.match(read('docker-compose.yml'), /no-new-privileges:true/);
     assert.match(read('backend/Dockerfile'), /USER node/);
   });
+
+  it('keeps chat edit, delete, clear, and contact removal wired end to end', () => {
+    const schema = read('backend/prisma/schema.prisma');
+    const gateway = read('backend/src/gateway/sync.gateway.ts');
+    const ui = read('frontend/src/layouts/AppLayout.tsx') + read('frontend/src/components/ChatBubble.tsx');
+
+    assert.match(schema, /editedAt\s+DateTime\?/);
+    assert.match(schema, /deletedAt\s+DateTime\?/);
+    assert.match(schema, /clearedAt\s+DateTime\?/);
+    assert.match(gateway, /message:edit/);
+    assert.match(gateway, /message:delete/);
+    assert.match(gateway, /conversation:clear/);
+    assert.match(gateway, /conversation:delete/);
+    assert.match(ui, /Edit message/);
+    assert.match(ui, /Clear chat/);
+    assert.match(ui, /Delete contact/);
+  });
 });

@@ -15,7 +15,17 @@ type UseRealtimeOptions = {
 
 export function useRealtime(options: UseRealtimeOptions) {
   const token = useAuthStore((state) => state.token);
-  const { addMessage, markDelivered, markSeen, setTyping, upsertUserPresence } = useChatStore();
+  const {
+    addMessage,
+    clearConversation,
+    deleteMessage,
+    markDelivered,
+    markSeen,
+    removeConversation,
+    setTyping,
+    updateMessage,
+    upsertUserPresence,
+  } = useChatStore();
 
   useEffect(() => {
     if (!token) return;
@@ -32,6 +42,11 @@ export function useRealtime(options: UseRealtimeOptions) {
       markDelivered(payload.conversationId, payload.deliveredTo);
     const onSeen = (payload: { conversationId: string; seenBy: string }) =>
       markSeen(payload.conversationId, payload.seenBy);
+    const onUpdated = (message: Message) => updateMessage(message);
+    const onDeleted = (payload: { conversationId: string; messageId: string }) =>
+      deleteMessage(payload.conversationId, payload.messageId);
+    const onCleared = (payload: { conversationId: string }) => clearConversation(payload.conversationId);
+    const onConversationDeleted = (payload: { conversationId: string }) => removeConversation(payload.conversationId);
     const onTypingStart = (payload: { conversationId: string; userId: string }) =>
       setTyping(payload.conversationId, payload.userId);
     const onTypingStop = (payload: { conversationId: string }) => setTyping(payload.conversationId, null);
@@ -39,6 +54,10 @@ export function useRealtime(options: UseRealtimeOptions) {
     socket.on('message:new', onNewMessage);
     socket.on('message:delivered', onDelivered);
     socket.on('message:seen', onSeen);
+    socket.on('message:updated', onUpdated);
+    socket.on('message:deleted', onDeleted);
+    socket.on('conversation:cleared', onCleared);
+    socket.on('conversation:deleted', onConversationDeleted);
     socket.on('typing:start', onTypingStart);
     socket.on('typing:stop', onTypingStop);
     socket.on('user:online', upsertUserPresence);
@@ -53,6 +72,10 @@ export function useRealtime(options: UseRealtimeOptions) {
       socket.off('message:new', onNewMessage);
       socket.off('message:delivered', onDelivered);
       socket.off('message:seen', onSeen);
+      socket.off('message:updated', onUpdated);
+      socket.off('message:deleted', onDeleted);
+      socket.off('conversation:cleared', onCleared);
+      socket.off('conversation:deleted', onConversationDeleted);
       socket.off('typing:start', onTypingStart);
       socket.off('typing:stop', onTypingStop);
       socket.off('user:online', upsertUserPresence);
@@ -63,7 +86,19 @@ export function useRealtime(options: UseRealtimeOptions) {
       socket.off('call:end', options.onCallEnded);
       socket.off('call:unavailable', options.onUnavailable);
     };
-  }, [addMessage, markDelivered, markSeen, options, setTyping, token, upsertUserPresence]);
+  }, [
+    addMessage,
+    clearConversation,
+    deleteMessage,
+    markDelivered,
+    markSeen,
+    options,
+    removeConversation,
+    setTyping,
+    token,
+    updateMessage,
+    upsertUserPresence,
+  ]);
 }
 
 export function emit(socket: Socket | null, event: string, payload: unknown) {

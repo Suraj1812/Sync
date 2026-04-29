@@ -23,6 +23,10 @@ type ChatState = {
   loadConversations: () => Promise<void>;
   loadMessages: (conversationId: string) => Promise<void>;
   addMessage: (message: Message) => void;
+  updateMessage: (message: Message) => void;
+  deleteMessage: (conversationId: string, messageId: string) => void;
+  clearConversation: (conversationId: string) => void;
+  removeConversation: (conversationId: string) => void;
   markDelivered: (conversationId: string, deliveredTo: string) => void;
   markSeen: (conversationId: string, seenBy: string) => void;
   setTyping: (conversationId: string, userId: string | null) => void;
@@ -122,6 +126,55 @@ export const useChatStore = create<ChatState>((set, get) => ({
         : conversations,
     });
     messagesLoadedAt.set(message.conversationId, Date.now());
+  },
+  updateMessage: (message) => {
+    const current = get().messages[message.conversationId] ?? [];
+    const messages = current.map((item) => (item.id === message.id ? message : item));
+    const conversations = get().conversations.map((conversation) =>
+      conversation.id === message.conversationId
+        ? {
+            ...conversation,
+            messages: conversation.messages.map((item) => (item.id === message.id ? message : item)),
+          }
+        : conversation,
+    );
+    set({ messages: { ...get().messages, [message.conversationId]: messages }, conversations });
+    messagesLoadedAt.set(message.conversationId, Date.now());
+  },
+  deleteMessage: (conversationId, messageId) => {
+    const current = get().messages[conversationId] ?? [];
+    const remaining = current.filter((message) => message.id !== messageId);
+    const fallbackLastMessage = remaining[remaining.length - 1];
+    const conversations = get().conversations.map((conversation) => {
+      if (conversation.id !== conversationId) return conversation;
+      const nextPreview = conversation.messages.filter((message) => message.id !== messageId);
+      return {
+        ...conversation,
+        messages: nextPreview.length > 0 ? nextPreview : fallbackLastMessage ? [fallbackLastMessage] : [],
+      };
+    });
+    set({ messages: { ...get().messages, [conversationId]: remaining }, conversations });
+    messagesLoadedAt.set(conversationId, Date.now());
+    conversationsLoadedAt = 0;
+  },
+  clearConversation: (conversationId) => {
+    const conversations = get().conversations.map((conversation) =>
+      conversation.id === conversationId ? { ...conversation, messages: [], unreadCount: 0 } : conversation,
+    );
+    set({ messages: { ...get().messages, [conversationId]: [] }, conversations });
+    messagesLoadedAt.set(conversationId, Date.now());
+    conversationsLoadedAt = 0;
+  },
+  removeConversation: (conversationId) => {
+    const nextMessages = { ...get().messages };
+    delete nextMessages[conversationId];
+    messagesLoadedAt.delete(conversationId);
+    set({
+      conversations: get().conversations.filter((conversation) => conversation.id !== conversationId),
+      messages: nextMessages,
+      activeConversationId: get().activeConversationId === conversationId ? null : get().activeConversationId,
+    });
+    conversationsLoadedAt = 0;
   },
   markDelivered: (conversationId, deliveredTo) => {
     const messages = (get().messages[conversationId] ?? []).map((message) =>
