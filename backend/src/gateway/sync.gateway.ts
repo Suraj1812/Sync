@@ -3,6 +3,7 @@ import {
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -14,6 +15,7 @@ import { CallsService } from '../calls/calls.service';
 import { ChatService } from '../chat/chat.service';
 import { ConversationActionDto, EditMessageDto, MessageActionDto, SendMessageDto, SeenMessageDto } from '../chat/dto';
 import { corsOrigin } from '../common/utils/origins';
+import { RealtimeService } from '../realtime/realtime.service';
 import { UsersService } from '../users/users.service';
 
 type AuthedSocket = Socket & {
@@ -36,7 +38,7 @@ type CallPayload = {
     credentials: true,
   },
 })
-export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class SyncGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
@@ -47,7 +49,12 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly users: UsersService,
     private readonly chat: ChatService,
     private readonly calls: CallsService,
+    private readonly realtime: RealtimeService,
   ) {}
+
+  afterInit(server: Server) {
+    this.realtime.attach(server);
+  }
 
   async handleConnection(client: AuthedSocket) {
     try {
@@ -83,14 +90,14 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('conversation:join')
   async joinConversation(@ConnectedSocket() client: AuthedSocket, @MessageBody() conversationId: string) {
-    if (!client.user) return;
+    if (!client.user || typeof conversationId !== 'string') return;
     await this.chat.assertParticipant(client.user.id, conversationId);
     client.join(this.conversationRoom(conversationId));
   }
 
   @SubscribeMessage('message:send')
   async sendMessage(@ConnectedSocket() client: AuthedSocket, @MessageBody() dto: SendMessageDto) {
-    if (!client.user) return;
+    if (!client.user || !dto?.conversationId) return;
     const participantIds = await this.chat.getParticipantIds(dto.conversationId);
     const receiverIds = participantIds.filter((id) => id !== client.user?.id);
     const receiverOnline = receiverIds.some((id) => this.onlineUsers.has(id));
@@ -102,7 +109,7 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('message:seen')
   async seen(@ConnectedSocket() client: AuthedSocket, @MessageBody() dto: SeenMessageDto) {
-    if (!client.user) return;
+    if (!client.user || !dto?.conversationId) return;
     const result = await this.chat.markSeen(client.user.id, dto.conversationId);
     const participantIds = await this.chat.getParticipantIds(dto.conversationId);
     const payload = {
@@ -151,7 +158,7 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: AuthedSocket,
     @MessageBody() payload: { conversationId: string },
   ) {
-    if (!client.user) return;
+    if (!client.user || !payload?.conversationId) return;
     await this.chat.assertParticipant(client.user.id, payload.conversationId);
     client.to(this.conversationRoom(payload.conversationId)).emit('typing:start', {
       conversationId: payload.conversationId,
@@ -164,7 +171,7 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: AuthedSocket,
     @MessageBody() payload: { conversationId: string },
   ) {
-    if (!client.user) return;
+    if (!client.user || !payload?.conversationId) return;
     await this.chat.assertParticipant(client.user.id, payload.conversationId);
     client.to(this.conversationRoom(payload.conversationId)).emit('typing:stop', {
       conversationId: payload.conversationId,
@@ -174,7 +181,7 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('call:initiate')
   async initiateCall(@ConnectedSocket() client: AuthedSocket, @MessageBody() payload: CallPayload) {
-    if (!client.user) return;
+    if (!client.user || !payload?.receiverId) return;
     if (!this.onlineUsers.has(payload.receiverId)) {
       client.emit('call:unavailable', { receiverId: payload.receiverId });
       return;
@@ -196,7 +203,7 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('call:accept')
   async acceptCall(@ConnectedSocket() client: AuthedSocket, @MessageBody() payload: CallPayload) {
-    if (!client.user || !payload.callId) return;
+    if (!client.user || !payload?.callId) return;
     const call = await this.calls.accept(payload.callId, client.user.id);
     this.server.to(this.userRoom(call.callerId)).emit('call:accept', {
       callId: payload.callId,
@@ -206,7 +213,7 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('call:reject')
   async rejectCall(@ConnectedSocket() client: AuthedSocket, @MessageBody() payload: CallPayload) {
-    if (!client.user || !payload.callId) return;
+    if (!client.user || !payload?.callId) return;
     const call = await this.calls.reject(payload.callId, client.user.id);
     this.server.to(this.userRoom(call.callerId)).emit('call:reject', {
       callId: payload.callId,
@@ -216,7 +223,7 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('call:end')
   async endCall(@ConnectedSocket() client: AuthedSocket, @MessageBody() payload: CallPayload) {
-    if (!client.user || !payload.callId) return;
+    if (!client.user || !payload?.callId) return;
     const call = await this.calls.end(payload.callId, client.user.id, CallStatus.ENDED);
     this.server.to(this.userRoom(this.calls.peerId(call, client.user.id))).emit('call:end', {
       callId: payload.callId,
@@ -226,7 +233,7 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('webrtc:offer')
   offer(@ConnectedSocket() client: AuthedSocket, @MessageBody() payload: CallPayload) {
-    if (!client.user) return;
+    if (!client.user || !payload?.receiverId) return;
     this.server.to(this.userRoom(payload.receiverId)).emit('webrtc:offer', {
       callId: payload.callId,
       senderId: client.user.id,
@@ -236,7 +243,7 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('webrtc:answer')
   answer(@ConnectedSocket() client: AuthedSocket, @MessageBody() payload: CallPayload) {
-    if (!client.user) return;
+    if (!client.user || !payload?.receiverId) return;
     this.server.to(this.userRoom(payload.receiverId)).emit('webrtc:answer', {
       callId: payload.callId,
       senderId: client.user.id,
@@ -246,7 +253,7 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('webrtc:ice')
   ice(@ConnectedSocket() client: AuthedSocket, @MessageBody() payload: CallPayload) {
-    if (!client.user) return;
+    if (!client.user || !payload?.receiverId) return;
     this.server.to(this.userRoom(payload.receiverId)).emit('webrtc:ice', {
       callId: payload.callId,
       senderId: client.user.id,

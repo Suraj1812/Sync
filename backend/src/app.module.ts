@@ -5,6 +5,7 @@ import { CallsModule } from './calls/calls.module';
 import { ChatModule } from './chat/chat.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RealtimeModule } from './realtime/realtime.module';
 import { UsersModule } from './users/users.module';
 import { AppController } from './app.controller';
 
@@ -12,6 +13,7 @@ import { AppController } from './app.controller';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    RealtimeModule,
     AuthModule,
     UsersModule,
     ChatModule,

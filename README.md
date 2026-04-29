@@ -93,6 +93,8 @@ The gateway authenticates sockets with JWT and supports:
 - `typing:start`
 - `typing:stop`
 
+REST message actions also publish through the shared realtime broadcaster, so socket fallback flows still update other connected clients without a page refresh.
+
 ## 7. Call Signaling
 
 Call signaling supports one-to-one voice and video calls:
@@ -294,6 +296,7 @@ Implemented safeguards include:
 - request security headers
 - API request timeouts
 - auth/API rate limiting
+- realtime REST fallback broadcasting for no-refresh message updates
 - same-origin `/api` and `/socket.io` proxy in Docker production mode
 - static asset caching and gzip in Nginx
 - non-root API container runtime
@@ -368,6 +371,7 @@ GitHub Actions runs on pushes and pull requests to `main`:
 - User search
 - One-to-one conversations
 - Real-time messaging
+- No-refresh updates for new messages, edits, deletes, presence, and contact restoration
 - Edit and delete your own messages
 - Clear visible chat history
 - Delete a contact from the conversation list

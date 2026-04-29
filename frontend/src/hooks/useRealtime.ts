@@ -36,15 +36,20 @@ export function useRealtime(options: UseRealtimeOptions) {
         .getState()
         .conversations.some((conversation) => conversation.id === message.conversationId);
       addMessage(message);
-      if (!knownConversation) void useChatStore.getState().loadConversations();
+      if (!knownConversation) void useChatStore.getState().loadConversations({ force: true, silent: true });
     };
     const onDelivered = (payload: { conversationId: string; deliveredTo: string }) =>
       markDelivered(payload.conversationId, payload.deliveredTo);
     const onSeen = (payload: { conversationId: string; seenBy: string }) =>
       markSeen(payload.conversationId, payload.seenBy);
-    const onUpdated = (message: Message) => updateMessage(message);
-    const onDeleted = (payload: { conversationId: string; messageId: string }) =>
+    const onUpdated = (message: Message) => {
+      updateMessage(message);
+      void useChatStore.getState().loadConversations({ force: true, silent: true });
+    };
+    const onDeleted = (payload: { conversationId: string; messageId: string }) => {
       deleteMessage(payload.conversationId, payload.messageId);
+      void useChatStore.getState().loadConversations({ force: true, silent: true });
+    };
     const onCleared = (payload: { conversationId: string }) => clearConversation(payload.conversationId);
     const onConversationDeleted = (payload: { conversationId: string }) => removeConversation(payload.conversationId);
     const onTypingStart = (payload: { conversationId: string; userId: string }) =>

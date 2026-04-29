@@ -3,9 +3,16 @@ import { io, Socket } from 'socket.io-client';
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 
 let socket: Socket | null = null;
+let socketToken = '';
 
 export function getSocket(token: string) {
-  if (socket?.connected) return socket;
+  if (socket && socketToken === token) {
+    if (socket.disconnected) socket.connect();
+    return socket;
+  }
+
+  socket?.disconnect();
+  socketToken = token;
   socket = io(API_URL || window.location.origin, {
     auth: { token },
     reconnectionAttempts: 8,
@@ -19,4 +26,5 @@ export function getSocket(token: string) {
 export function closeSocket() {
   socket?.disconnect();
   socket = null;
+  socketToken = '';
 }

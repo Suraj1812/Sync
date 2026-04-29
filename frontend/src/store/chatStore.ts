@@ -7,8 +7,15 @@ const CONVERSATION_TTL = 10_000;
 const MESSAGE_TTL = 15_000;
 let conversationsRequest: Promise<Conversation[]> | null = null;
 let conversationsLoadedAt = 0;
+let conversationsRequestVersion = 0;
 const messageRequests = new Map<string, Promise<Message[]>>();
 const messagesLoadedAt = new Map<string, number>();
+const messageRequestVersions = new Map<string, number>();
+
+type LoadOptions = {
+  force?: boolean;
+  silent?: boolean;
+};
 
 type ChatState = {
   conversations: Conversation[];
@@ -20,8 +27,8 @@ type ChatState = {
   loadError: string;
   setActiveConversation: (id: string | null) => void;
   setConversations: (conversations: Conversation[]) => void;
-  loadConversations: () => Promise<void>;
-  loadMessages: (conversationId: string) => Promise<void>;
+  loadConversations: (options?: LoadOptions) => Promise<void>;
+  loadMessages: (conversationId: string, options?: LoadOptions) => Promise<void>;
   addMessage: (message: Message) => void;
   updateMessage: (message: Message) => void;
   deleteMessage: (conversationId: string, messageId: string) => void;
@@ -54,41 +61,53 @@ export const useChatStore = create<ChatState>((set, get) => ({
     conversationsLoadedAt = Date.now();
     set({ conversations });
   },
-  loadConversations: async () => {
-    const fresh = Date.now() - conversationsLoadedAt < CONVERSATION_TTL && get().conversations.length > 0;
+  loadConversations: async (options = {}) => {
+    const fresh = !options.force && Date.now() - conversationsLoadedAt < CONVERSATION_TTL && get().conversations.length > 0;
     if (fresh) return;
 
-    conversationsRequest ??= chatApi.conversations().finally(() => {
-      conversationsRequest = null;
-    });
+    if (!conversationsRequest || options.force) {
+      conversationsRequestVersion += 1;
+      const request = chatApi.conversations().finally(() => {
+        if (conversationsRequest === request) conversationsRequest = null;
+      });
+      conversationsRequest = request;
+    }
+    const requestVersion = conversationsRequestVersion;
 
-    set({ conversationsLoading: true, loadError: '' });
+    if (!options.silent) set({ conversationsLoading: true, loadError: '' });
     try {
       const conversations = await conversationsRequest;
+      if (requestVersion !== conversationsRequestVersion) return;
       conversationsLoadedAt = Date.now();
       set({ conversations, conversationsLoading: false });
     } catch {
       set({ conversationsLoading: false, loadError: 'Could not load conversations.' });
     }
   },
-  loadMessages: async (conversationId) => {
+  loadMessages: async (conversationId, options = {}) => {
     const loadedAt = messagesLoadedAt.get(conversationId) ?? 0;
     const hasMessages = get().messages[conversationId] !== undefined;
-    if (hasMessages && Date.now() - loadedAt < MESSAGE_TTL) return;
+    if (!options.force && hasMessages && Date.now() - loadedAt < MESSAGE_TTL) return;
 
-    if (!messageRequests.has(conversationId)) {
-      messageRequests.set(
-        conversationId,
-        chatApi.messages(conversationId).finally(() => {
+    if (!messageRequests.has(conversationId) || options.force) {
+      const nextVersion = (messageRequestVersions.get(conversationId) ?? 0) + 1;
+      messageRequestVersions.set(conversationId, nextVersion);
+      const request = chatApi.messages(conversationId).finally(() => {
+        if (messageRequests.get(conversationId) === request) {
           messageRequests.delete(conversationId);
-        }),
-      );
+        }
+      });
+      messageRequests.set(conversationId, request);
     }
+    const requestVersion = messageRequestVersions.get(conversationId) ?? 0;
 
-    set({ messagesLoading: { ...get().messagesLoading, [conversationId]: true }, loadError: '' });
+    if (!options.silent) {
+      set({ messagesLoading: { ...get().messagesLoading, [conversationId]: true }, loadError: '' });
+    }
     try {
       const messages = await messageRequests.get(conversationId);
       if (!messages) return;
+      if (requestVersion !== (messageRequestVersions.get(conversationId) ?? 0)) return;
       messagesLoadedAt.set(conversationId, Date.now());
       set({
         messages: { ...get().messages, [conversationId]: messages },
@@ -129,7 +148,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   updateMessage: (message) => {
     const current = get().messages[message.conversationId] ?? [];
+    const hasMessageCache = get().messages[message.conversationId] !== undefined;
     const messages = current.map((item) => (item.id === message.id ? message : item));
+    const messageWasCached = current.some((item) => item.id === message.id);
     const conversations = get().conversations.map((conversation) =>
       conversation.id === message.conversationId
         ? {
@@ -138,11 +159,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }
         : conversation,
     );
-    set({ messages: { ...get().messages, [message.conversationId]: messages }, conversations });
-    messagesLoadedAt.set(message.conversationId, Date.now());
+    set({
+      messages:
+        hasMessageCache || messageWasCached
+          ? { ...get().messages, [message.conversationId]: messages }
+          : get().messages,
+      conversations,
+    });
+    if (hasMessageCache || messageWasCached) messagesLoadedAt.set(message.conversationId, Date.now());
   },
   deleteMessage: (conversationId, messageId) => {
     const current = get().messages[conversationId] ?? [];
+    const hasMessageCache = get().messages[conversationId] !== undefined;
     const remaining = current.filter((message) => message.id !== messageId);
     const fallbackLastMessage = remaining[remaining.length - 1];
     const conversations = get().conversations.map((conversation) => {
@@ -153,8 +181,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: nextPreview.length > 0 ? nextPreview : fallbackLastMessage ? [fallbackLastMessage] : [],
       };
     });
-    set({ messages: { ...get().messages, [conversationId]: remaining }, conversations });
-    messagesLoadedAt.set(conversationId, Date.now());
+    set({ messages: hasMessageCache ? { ...get().messages, [conversationId]: remaining } : get().messages, conversations });
+    if (hasMessageCache) messagesLoadedAt.set(conversationId, Date.now());
     conversationsLoadedAt = 0;
   },
   clearConversation: (conversationId) => {
@@ -189,7 +217,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ),
       };
     });
-    set({ messages: { ...get().messages, [conversationId]: messages }, conversations });
+    set({
+      messages: get().messages[conversationId] !== undefined ? { ...get().messages, [conversationId]: messages } : get().messages,
+      conversations,
+    });
   },
   markSeen: (conversationId, seenBy) => {
     const currentUserId = useAuthStore.getState().user?.id;
@@ -206,7 +237,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ),
       };
     });
-    set({ messages: { ...get().messages, [conversationId]: messages }, conversations });
+    set({
+      messages: get().messages[conversationId] !== undefined ? { ...get().messages, [conversationId]: messages } : get().messages,
+      conversations,
+    });
   },
   setTyping: (conversationId, userId) =>
     set({ typingByConversation: { ...get().typingByConversation, [conversationId]: userId } }),
@@ -224,8 +258,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 function resetChatCache() {
   conversationsRequest = null;
   conversationsLoadedAt = 0;
+  conversationsRequestVersion = 0;
   messageRequests.clear();
   messagesLoadedAt.clear();
+  messageRequestVersions.clear();
   useChatStore.setState({
     conversations: [],
     messages: {},

@@ -48,6 +48,8 @@ function findParticipantById(conversations: Conversation[], userId: string) {
 
 const iconButtonClass =
   'h-10 w-10 rounded-xl border border-slate-200 bg-slate-50 px-0 text-slate-700 shadow-sm hover:border-slate-300 hover:bg-white hover:text-slate-950 focus-visible:ring-blue-100 sm:h-11 sm:w-11 [&_svg]:h-5 [&_svg]:w-5 sm:[&_svg]:h-[21px] sm:[&_svg]:w-[21px]';
+const chatHeaderButtonClass =
+  'h-9 w-9 rounded-xl border border-slate-200 bg-slate-50 px-0 text-slate-700 shadow-sm hover:border-slate-300 hover:bg-white hover:text-slate-950 focus-visible:ring-blue-100 sm:h-10 sm:w-10 md:h-11 md:w-11 [&_svg]:h-[18px] [&_svg]:w-[18px] sm:[&_svg]:h-5 sm:[&_svg]:w-5';
 
 export function AppLayout() {
   const { user, token, logout, setUser } = useAuthStore();
@@ -209,11 +211,11 @@ export function AppLayout() {
   }
 
   return (
-    <main className="h-[100dvh] overflow-hidden bg-slate-100 p-0 text-ink md:p-3">
+    <main className="h-[100svh] overflow-hidden bg-white p-0 text-ink md:h-[100dvh] md:bg-slate-100 md:p-3">
       <div className="flex h-full overflow-hidden bg-white shadow-[0_20px_70px_rgba(15,23,42,0.08)] md:rounded-[28px] md:border md:border-slate-200">
         <aside
           className={clsx(
-            'absolute inset-y-0 left-0 z-30 w-[min(92vw,24rem)] border-r border-slate-200 bg-white shadow-2xl transition-transform md:static md:block md:w-[380px] md:max-w-[380px] md:translate-x-0 md:shadow-none lg:w-[420px] lg:max-w-[420px]',
+            'absolute inset-y-0 left-0 z-30 w-full max-w-[24rem] border-r border-slate-200 bg-white shadow-2xl transition-transform md:static md:block md:w-[380px] md:max-w-[380px] md:translate-x-0 md:shadow-none lg:w-[420px] lg:max-w-[420px]',
             mobileListOpen ? 'translate-x-0' : '-translate-x-full',
           )}
         >
@@ -307,7 +309,7 @@ function ConversationList({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b border-slate-200 px-4 py-4 sm:px-5 sm:py-5">
+      <header className="border-b border-slate-200 px-3 py-3 sm:px-5 sm:py-5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase text-slate-400">Sync</p>
@@ -349,7 +351,7 @@ function ConversationList({
           </div>
         </div>
         <button
-          className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-slate-300 hover:bg-white sm:mt-5"
+          className="mt-3 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition hover:border-slate-300 hover:bg-white sm:mt-5 sm:rounded-2xl sm:px-4 sm:py-3"
           onClick={onProfile}
         >
           <Avatar user={currentUser} />
@@ -369,7 +371,7 @@ function ConversationList({
       </header>
       <div className="thin-scrollbar flex-1 overflow-y-auto">
         {loading && conversations.length === 0 ? (
-          <div className="space-y-3 px-5 py-5">
+          <div className="space-y-3 px-4 py-4 sm:px-5 sm:py-5">
             {Array.from({ length: 5 }, (_, index) => (
               <div key={index} className="flex animate-pulse items-center gap-3 rounded-2xl px-1 py-2">
                 <div className="h-11 w-11 rounded-full bg-slate-200" />
@@ -381,12 +383,12 @@ function ConversationList({
             ))}
           </div>
         ) : error && conversations.length === 0 ? (
-          <div className="px-8 py-16 text-center">
+          <div className="px-6 py-12 text-center sm:px-8 sm:py-16">
             <p className="text-sm font-medium text-ink">Could not load messages</p>
             <p className="mt-2 text-sm text-muted">{error}</p>
           </div>
         ) : conversations.length === 0 ? (
-          <div className="px-8 py-16 text-center">
+          <div className="px-6 py-12 text-center sm:px-8 sm:py-16">
             <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-line bg-white text-brand shadow-sm">
               <UserPlus size={22} />
             </div>
@@ -406,7 +408,7 @@ function ConversationList({
               <button
                 key={conversation.id}
                 className={clsx(
-                  'flex w-full items-center gap-3 border-b border-slate-100 px-5 py-4 text-left transition hover:bg-slate-50',
+                  'flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3.5 text-left transition hover:bg-slate-50 sm:px-5 sm:py-4',
                   activeId === conversation.id && 'bg-blue-50/90 ring-1 ring-inset ring-blue-100',
                 )}
                 onClick={() => onSelect(conversation.id)}
@@ -531,16 +533,18 @@ function ConversationView({
       return;
     }
 
-    if (socket?.connected) {
-      socket.emit('message:send', { conversationId: conversation.id, content: nextContent });
-    } else {
-      try {
-        const message = await chatApi.sendMessage(conversation.id, nextContent);
-        addMessage(message);
-      } catch {
-        setActionError('Could not send that message. Try again.');
-        return;
-      }
+    setActionBusy(true);
+    try {
+      const message = await emitWithFallback<Message>(
+        'message:send',
+        { conversationId: conversation.id, content: nextContent },
+        () => chatApi.sendMessage(conversation.id, nextContent),
+      );
+      addMessage(message);
+    } catch {
+      setActionError('Could not send that message. Try again.');
+      setActionBusy(false);
+      return;
     }
     if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
     if (typingRef.current) {
@@ -549,6 +553,7 @@ function ConversationView({
     }
     setContent('');
     setEmojiOpen(false);
+    setActionBusy(false);
   }
 
   function startEditing(message: Message) {
@@ -644,11 +649,11 @@ function ConversationView({
   if (!conversation || !peer) {
     return (
       <div className="flex h-full flex-col">
-        <header className="safe-top flex min-h-16 items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 md:hidden">
-          <Button aria-label="Menu" variant="soft" className={iconButtonClass} onClick={onMenu} icon={<Menu size={21} />} />
+        <header className="safe-top flex min-h-14 items-center gap-2 border-b border-slate-200 bg-white px-3 py-2 md:hidden">
+          <Button aria-label="Menu" variant="soft" className={chatHeaderButtonClass} onClick={onMenu} icon={<Menu size={20} />} />
           <span className="min-w-0 truncate font-semibold">Sync</span>
         </header>
-        <div className="grid flex-1 place-items-center bg-[#f6f8fb] px-6 text-center">
+        <div className="grid flex-1 place-items-center bg-[#f6f8fb] px-5 text-center sm:px-6">
           <div>
             <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-slate-200 bg-white text-brand shadow-soft">
               <MessageCircle size={28} />
@@ -663,14 +668,14 @@ function ConversationView({
 
   return (
     <div className="flex h-full flex-col">
-      <header className="safe-top flex min-h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-3 sm:px-5 md:min-h-20 md:px-8">
-        <div className="flex min-w-0 items-center gap-3">
+      <header className="safe-top flex min-h-14 items-center justify-between gap-2 border-b border-slate-200 bg-white px-2.5 py-2 sm:min-h-16 sm:px-5 sm:py-3 md:min-h-20 md:px-8">
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
           <Button
             aria-label="Menu"
             variant="soft"
-            className={clsx(iconButtonClass, 'md:hidden')}
+            className={clsx(chatHeaderButtonClass, 'md:hidden')}
             onClick={onMenu}
-            icon={<Menu size={21} />}
+            icon={<Menu size={20} />}
           />
           <Avatar user={peer} />
           <div className="min-w-0">
@@ -680,12 +685,12 @@ function ConversationView({
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <Button
             aria-label="Start voice call"
             title="Start voice call"
             variant="soft"
-            className={iconButtonClass}
+            className={chatHeaderButtonClass}
             onClick={() => onStartCall('audio')}
             icon={<PhoneCall size={21} />}
           />
@@ -693,7 +698,7 @@ function ConversationView({
             aria-label="Start video call"
             title="Start video call"
             variant="soft"
-            className={iconButtonClass}
+            className={chatHeaderButtonClass}
             onClick={() => onStartCall('video')}
             icon={<Video size={21} />}
           />
@@ -702,7 +707,7 @@ function ConversationView({
               aria-label="Chat options"
               title="Chat options"
               variant="soft"
-              className={iconButtonClass}
+              className={chatHeaderButtonClass}
               onClick={() => setThreadMenuOpen((open) => !open)}
               icon={<MoreVertical size={21} />}
             />
@@ -739,7 +744,7 @@ function ConversationView({
       </header>
 
       <div className="thin-scrollbar flex-1 overflow-y-auto bg-[#f6f8fb]">
-        <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col justify-end space-y-3 px-3 py-4 sm:px-5 sm:py-6 md:px-8 md:py-7">
+        <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col justify-end space-y-2.5 px-2.5 py-3 sm:space-y-3 sm:px-5 sm:py-6 md:px-8 md:py-7">
           {loading && messages.length === 0 ? (
             <MessageSkeleton />
           ) : error && messages.length === 0 ? (
@@ -764,9 +769,9 @@ function ConversationView({
         </div>
       </div>
 
-      <form className="safe-bottom relative border-t border-slate-200 bg-white px-3 pt-3 sm:px-4 md:px-8" onSubmit={send}>
+      <form className="safe-bottom relative border-t border-slate-200 bg-white px-2.5 pt-2 sm:px-4 sm:pt-3 md:px-8" onSubmit={send}>
         {editingMessage && (
-          <div className="mx-auto mb-2 flex max-w-4xl items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-2 text-sm text-slate-700">
+          <div className="mx-auto mb-2 flex max-w-4xl items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-slate-700 sm:rounded-2xl sm:px-4">
             <div className="min-w-0">
               <p className="font-semibold text-brand">Editing message</p>
               <p className="truncate text-xs text-slate-500">{editingMessage.content}</p>
@@ -783,7 +788,7 @@ function ConversationView({
         )}
         {actionError && <p className="mx-auto mb-2 max-w-4xl text-sm text-red-600">{actionError}</p>}
         {emojiOpen && (
-          <div className="absolute bottom-20 left-3 z-10 w-[calc(100vw-1.5rem)] max-w-80 sm:left-4 md:left-8">
+          <div className="absolute bottom-16 left-2.5 z-10 w-[calc(100vw-1.25rem)] max-w-80 sm:bottom-20 sm:left-4 md:left-8">
             <Suspense fallback={<div className="h-48 w-full rounded-xl border border-slate-200 bg-white shadow-soft" />}>
               <EmojiPicker
                 width="100%"
@@ -800,19 +805,19 @@ function ConversationView({
             aria-label="Emoji"
             title="Emoji"
             variant="soft"
-            className={clsx(iconButtonClass, 'h-11 w-11 shrink-0')}
+            className={clsx(chatHeaderButtonClass, 'h-10 w-10 shrink-0 sm:h-11 sm:w-11')}
             onClick={() => setEmojiOpen((open) => !open)}
             icon={<Smile size={21} />}
           />
           <textarea
-            className="max-h-32 min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base outline-none transition placeholder:text-slate-400 focus:border-brand focus:bg-white focus:ring-4 focus:ring-blue-100 sm:px-5 sm:text-sm"
+            className="max-h-32 min-h-10 min-w-0 flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-base outline-none transition placeholder:text-slate-400 focus:border-brand focus:bg-white focus:ring-4 focus:ring-blue-100 sm:min-h-11 sm:rounded-2xl sm:px-5 sm:py-3 sm:text-sm"
             rows={1}
             value={content}
             placeholder={editingMessage ? 'Edit message' : 'Message'}
             onChange={(event) => onTyping(event.target.value)}
           />
           <Button
-            className="h-11 w-11 shrink-0 rounded-2xl px-0 shadow-[0_10px_24px_rgba(37,99,235,0.25)] [&_svg]:h-5 [&_svg]:w-5 sm:[&_svg]:h-[21px] sm:[&_svg]:w-[21px]"
+            className="h-10 w-10 shrink-0 rounded-xl px-0 shadow-[0_10px_24px_rgba(37,99,235,0.25)] sm:h-11 sm:w-11 sm:rounded-2xl [&_svg]:h-5 [&_svg]:w-5 sm:[&_svg]:h-[21px] sm:[&_svg]:w-[21px]"
             aria-label="Send"
             title="Send"
             disabled={actionBusy || !content.trim()}
